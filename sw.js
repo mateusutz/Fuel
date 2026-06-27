@@ -1,12 +1,13 @@
 /* Fuel — service worker
    IMPORTANTE: incremente CACHE_VERSION a cada deploy para forçar a atualização
    do app no dispositivo. Sem isso, o aparelho continua servindo a versão antiga. */
-const CACHE_VERSION = 'fuel-v1';
+const CACHE_VERSION = 'fuel-v2';
 
 /* App shell (mesma origem). addAll é atômico: se um falhar, o install falha. */
 const SHELL = [
   './',
   'index.html',
+  'dados-taco.js',
   'app.js',
   'manifest.json',
   'icons/icon-192.png',

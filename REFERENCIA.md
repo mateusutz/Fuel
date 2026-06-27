@@ -4,14 +4,15 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 1 (esqueleto + Perfil + motor de cálculo).
-- **CACHE_VERSION atual:** `fuel-v1` (em `sw.js`).
+- **Lote concluído:** 2 (esqueleto + Perfil + motor de cálculo + Biblioteca de alimentos).
+- **CACHE_VERSION atual:** `fuel-v2` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
 ## Arquivos
-- `index.html` — carrega React 18 UMD, Babel standalone (classic) e `app.js`; registra o SW.
-- `app.js` — app inteiro (dados, motor, componentes, telas). Único arquivo.
+- `index.html` — carrega React 18 UMD, Babel standalone (classic), `dados-taco.js` e `app.js`; registra o SW.
+- `app.js` — app inteiro (dados, motor, componentes, telas). Único arquivo de código.
+- `dados-taco.js` — semente de alimentos (dados, não código). Define `window.FUEL_TACO`, `window.FUEL_TACO_CATS`, `window.FUEL_PORCOES`. Carregado como script comum **antes** do `app.js`.
 - `sw.js` — service worker; cacheia o app shell; **CACHE_VERSION** incrementável.
 - `manifest.json` — PWA (nome, cores, ícones).
 - `icons/` — `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`.
@@ -30,6 +31,10 @@ Prefixo `fuel:` em todas. Hoje:
   - Campos numéricos guardados como string; convertidos por `normalizarPerfil()`.
 - `metasManuais` — `null` ou objeto de metas sobrescritas à mão (`manual: true`).
 - `abaAtiva` — `'semana' | 'biblioteca' | 'perfil'`.
+- **Alimentos (lote 2) — modelo delta/override.** A semente (`window.FUEL_TACO`) é read-only e vive em `dados-taco.js`; o storage guarda só o que o usuário cria ou altera:
+  - `alimentosUsuario` — array de alimentos próprios: `{ id:'u-<ts>', nome, cat, kcal, prot, carbo, gord, criadoEm }` (valores por 100 g).
+  - `alimentosOverride` — `{ '<id>': { campos editados…, oculto?:true } }`. Só para ids `taco-*`. Editar um item da TACO grava um override; "remover" grava `oculto:true` (reversível via backup).
+  - `porcoes` — `{ '<alimentoId>': [ {id, rotulo, g} ] }`. Materializa só quando o usuário edita as porções daquele alimento; senão usa `FUEL_PORCOES` da semente.
 
 Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm, dados:{...todas as chaves...} }`.
 
@@ -54,11 +59,17 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 ## Componentes principais (`app.js`)
 - `App` — navegação inferior (3 abas) + roteamento simples por estado.
 - `TelaPerfil` — formulário, cálculo reativo, edição manual, backup.
-- `TelaEmBreve` — placeholder de Semana e Biblioteca (próximos lotes).
-- `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual**.
+- `TelaEmBreve` — placeholder da Semana (próximo lote).
+- `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual** (reaproveitado no detalhe do alimento, "por 100 g").
 - `EditorManual` — sobrescreve metas à mão.
 - `CardBackup` — exportar/importar JSON.
-- Reutilizáveis: `Campo`, `Select`, `Segmented`, `LinhaMacro`, `Icone`.
+- **Biblioteca (lote 2):** `TelaBiblioteca` (orquestra navegação lista→detalhe→form por estado), `ListaAlimentos` (busca sem acento + filtro por categoria, render limitado a 80), `ItemAlimento`, `TelaDetalhe` (anel por 100 g + porções editáveis), `FormAlimento` (criar/editar, com conferência "kcal pelos macros"), `FormPorcao`.
+- Reutilizáveis: `Campo`, `Select`, `Segmented`, `LinhaMacro`, `Icone`, `Cabecalho`.
+
+## Banco de alimentos (lote 2)
+- **Semente:** Tabela TACO (NEPA/UNICAMP), 597 alimentos, 15 categorias, só os 4 macros por 100 g. 15 buracos da fonte foram preenchidos (óleos = gordura pura; leites e poucos itens com valores de referência; sal/álcool determinados). 111 alimentos comuns já vêm com porções caseiras (concha, colher, fatia, unidade, copo…).
+- **Funções (em `window.FuelEngine`):** `todosAlimentos()`, `obterAlimento(id)`, `criarAlimento(dados)`, `editarAlimento(id, campos)`, `excluirAlimento(id)`, `porcoesDe(id)`, `salvarPorcoes(id, lista)`, `categorias()`, `norm(s)` (busca sem acento).
+- **Unidade:** tudo em gramas; líquidos entram como porção ("1 copo (200 g)"). Base sempre 100 g.
 
 ## Identidade visual
 - Fundo `#FAFAF7`, cartão `#FFFFFF`, texto `#1E2A24`, secundário `#6B7770`, linha `#ECEFEC`.
@@ -72,8 +83,7 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
   aguardar o workflow concluir → reabrir o app (às vezes 2x) para o cache novo assumir.
 
 ## Próximos lotes (planejados)
-2. Banco de alimentos (semente TACO/USDA + cadastro próprio, porções customizadas).
-3. Refeições-modelo (biblioteca reutilizável).
+3. Refeições-modelo (biblioteca reutilizável combinando alimentos + porções).
 4. Semana genérica + Dia com o anel de calorias; cópia editável + "salvar no modelo".
 5. Backup separado por tipo (alimentos+receitas vs. plano).
-Futuro: nuvem (Firebase, offline-first), micronutrientes, API externa de tabela nutricional.
+Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional.
