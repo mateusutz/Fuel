@@ -287,6 +287,55 @@
   }
 
   /* ============================================================
+     LISTA DE COMPRAS (lote 6)
+     Agrega os alimentos da semana e mostra na medida mais natural quando dá:
+     unidades/fatias (porção contável), litros/ml (líquidos), kg/g (resto).
+     ============================================================ */
+  function fmtMil(n) { try { return Math.round(n).toLocaleString('pt-BR'); } catch (e) { return String(Math.round(n)); } }
+  function qtdCompra(alimento, G) {
+    var ps = porcoesDe(alimento.id) || [];
+    for (var i = 0; i < ps.length; i++) {
+      var r = norm(ps[i].rotulo);
+      if (ps[i].g > 0 && (/unidade/.test(r) || /fatia/.test(r))) {
+        var n = Math.round(G / ps[i].g);
+        if (n >= 1) { var fatia = /fatia/.test(r); return { principal: fatia ? (n + (n === 1 ? ' fatia' : ' fatias')) : (n + ' un'), sub: fmtMil(G) + ' g' }; }
+      }
+    }
+    var cat = norm(alimento.cat || ''), rotulos = norm(ps.map(function (p) { return p.rotulo; }).join(' ')), nome = norm(alimento.nome);
+    var liquido = /bebidas/.test(cat) || /\bcopo\b|\bml\b|xicara/.test(rotulos) || /leite|suco|agua|oleo|azeite|vinagre|cafe|refrigerante|cerveja|vinho|bebida|caldo/.test(nome);
+    if (liquido) { if (G >= 1000) return { principal: fmt(G / 1000) + ' L', sub: null }; return { principal: fmtMil(Math.round(G)) + ' ml', sub: null }; }
+    if (G >= 1000) return { principal: fmt(G / 1000) + ' kg', sub: null };
+    return { principal: fmtMil(Math.round(G)) + ' g', sub: null };
+  }
+  function listaDeCompras(diasSel) {
+    var dias = (diasSel && diasSel.length) ? diasSel : DIAS.map(function (d) { return d.id; });
+    var tot = {};
+    dias.forEach(function (dia) {
+      refeicoesDoDia(dia).forEach(function (rf) {
+        (rf.itens || []).forEach(function (it) { tot[it.alimentoId] = (tot[it.alimentoId] || 0) + (parseFloat(it.gramas) || 0); });
+      });
+    });
+    var itens = Object.keys(tot).map(function (aid) {
+      var a = obterAlimento(aid);
+      return { id: aid, nome: a ? a.nome : 'Alimento removido', cat: a ? (a.cat || 'Outros') : 'Outros', gramas: Math.round(tot[aid] * 10) / 10, q: a ? qtdCompra(a, tot[aid]) : { principal: fmtMil(tot[aid]) + ' g', sub: null } };
+    });
+    var ordem = categorias(), grupos = {};
+    itens.forEach(function (it) { (grupos[it.cat] = grupos[it.cat] || []).push(it); });
+    Object.keys(grupos).forEach(function (k) { grupos[k].sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); }); });
+    var cats = Object.keys(grupos).sort(function (a, b) { var ia = ordem.indexOf(a), ib = ordem.indexOf(b); if (ia < 0) ia = 999; if (ib < 0) ib = 999; return ia - ib || a.localeCompare(b, 'pt-BR'); });
+    return { grupos: grupos, cats: cats, total: itens.length };
+  }
+  function listaComprasTexto(diasSel) {
+    var L = listaDeCompras(diasSel), linhas = ['Lista de compras — Fuel', ''];
+    L.cats.forEach(function (cat) {
+      linhas.push(cat.toUpperCase());
+      L.grupos[cat].forEach(function (it) { linhas.push('- ' + it.nome + ': ' + it.q.principal + (it.q.sub ? ' (' + it.q.sub + ')' : '')); });
+      linhas.push('');
+    });
+    return linhas.join('\n').trim();
+  }
+
+  /* ============================================================
      PERFIL (lote 1)
      ============================================================ */
   var SCHEMA = 1;
@@ -1024,6 +1073,7 @@
       <div style={S.screen}>
         <h1 style={S.h1}>Semana</h1>
         <p style={S.sub}>Seu molde de semana típica. Toque num dia para montá-lo.</p>
+        <button style={Object.assign({}, S.btnGhost, { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 })} onClick={props.onCompras}><Icone nome="carrinho" size={18} color={C.brandDark} /> Lista de compras</button>
         {DIAS.map(function (d) {
           var m = macrosDoDia(d.id), n = idsDoDia(d.id).length;
           var pct = metas && metas.kcal > 0 ? Math.min(100, Math.round(m.kcal / metas.kcal * 100)) : 0;
@@ -1164,13 +1214,62 @@
       onCopiar={function () { setNav({ t: 'copiar' }); }} />;
   }
 
+  function TelaCompras(props) {
+    var L = listaDeCompras(null);
+    var mst = useState({}); var marcados = mst[0], setMarcados = mst[1];
+    var cst = useState(''); var copiado = cst[0], setCopiado = cst[1];
+    function toggle(id) { var n = Object.assign({}, marcados); if (n[id]) delete n[id]; else n[id] = true; setMarcados(n); }
+    function copiar() {
+      var txt = listaComprasTexto(null);
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(function () { setCopiado('ok'); setTimeout(function () { setCopiado(''); }, 2000); }, function () { setCopiado('falha'); setTimeout(function () { setCopiado(''); }, 2500); });
+        } else { setCopiado('falha'); setTimeout(function () { setCopiado(''); }, 2500); }
+      } catch (e) { setCopiado('falha'); setTimeout(function () { setCopiado(''); }, 2500); }
+    }
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo="Lista de compras" onVoltar={props.onVoltar} />
+        {L.total === 0
+          ? <div style={S.card}><div style={S.note}>Sua semana ainda não tem alimentos. Monte os dias na aba Semana e a lista aparece aqui.</div></div>
+          : <div>
+            <p style={S.sub}>Tudo que sua semana inteira pede, somado e agrupado por tipo. Toque num item para marcar como pego.</p>
+            {L.cats.map(function (cat) {
+              return (
+                <div key={cat} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 2px 8px' }}>{cat}</div>
+                  <div style={S.card}>
+                    {L.grupos[cat].map(function (it, i) {
+                      var on = !!marcados[it.id];
+                      return (
+                        <button key={it.id} onClick={function () { toggle(it.id); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 2px', background: 'none', border: 'none', borderBottom: i < L.grupos[cat].length - 1 ? '1px solid ' + C.line : 'none', cursor: 'pointer', textAlign: 'left' }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color="#fff" /> : null}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: on ? C.ink2 : C.ink, textDecoration: on ? 'line-through' : 'none' }}>{it.nome}</span>
+                          <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: on ? C.ink2 : C.ink, whiteSpace: 'nowrap' }}>{it.q.principal}{it.q.sub ? <span style={{ fontWeight: 400, fontSize: 11.5, color: C.ink2 }}> · {it.q.sub}</span> : null}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            <button style={S.btn} onClick={copiar}>{copiado === 'ok' ? 'Copiado!' : (copiado === 'falha' ? 'Não consegui copiar' : 'Copiar lista')}</button>
+            <div style={{ height: 8 }} />
+          </div>}
+      </div>
+    );
+  }
+
   function PainelSemana() {
     var nst = useState({ t: 'lista' }); var nav = nst[0], setNav = nst[1];
     var vst = useState(0); var versao = vst[0], setVersao = vst[1];
     if (nav.t === 'dia') {
       return <PainelDia diaId={nav.diaId} onVoltar={function () { setVersao(function (n) { return n + 1; }); setNav({ t: 'lista' }); }} />;
     }
-    return <TelaSemana versao={versao} onAbrir={function (diaId) { setNav({ t: 'dia', diaId: diaId }); }} />;
+    if (nav.t === 'compras') {
+      return <TelaCompras onVoltar={function () { setVersao(function (n) { return n + 1; }); setNav({ t: 'lista' }); }} />;
+    }
+    return <TelaSemana versao={versao} onAbrir={function (diaId) { setNav({ t: 'dia', diaId: diaId }); }} onCompras={function () { setNav({ t: 'compras' }); }} />;
   }
 
   /* ============================================================
@@ -1215,6 +1314,7 @@
     DIAS: DIAS, idsDoDia: idsDoDia, refeicoesDoDia: refeicoesDoDia, adicionarRefeicaoAoDia: adicionarRefeicaoAoDia,
     removerRefeicaoDoDia: removerRefeicaoDoDia, salvarCopiaNoModelo: salvarCopiaNoModelo, macrosDoDia: macrosDoDia,
     copiarDiaPara: copiarDiaPara, clonarRefeicaoComoCopia: clonarRefeicaoComoCopia,
+    listaDeCompras: listaDeCompras, listaComprasTexto: listaComprasTexto, qtdCompra: qtdCompra,
     limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais,
     storeGet: storeGet, storeSet: storeSet
   };
