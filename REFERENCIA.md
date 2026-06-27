@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 4 (Perfil + motor + Biblioteca de alimentos + Refeições-modelo + Semana e Dia).
-- **CACHE_VERSION atual:** `fuel-v4` (em `sw.js`).
+- **Lote concluído:** 5 (Perfil + motor + Biblioteca + Refeições-modelo + Semana e Dia + Copiar dia).
+- **CACHE_VERSION atual:** `fuel-v5` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -101,7 +101,9 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - Cada dia mostra os momentos sempre à mostra (`MOMENTOS_PRINCIPAIS`) + os usados, cada um com "+ adicionar". Adicionar = puxar um modelo (vira **cópia** editável só naquele dia) ou montar na hora. Editar a cópia não afeta o modelo; "salvar no/como modelo" propaga.
 - O resumo do dia (`CardResumoDia`) traz o anel de calorias do dia vs. meta do Perfil + barras de macro vs. metas.
 - **Funções (em `window.FuelEngine`):** `refeicoesModelo()`, `idsDoDia(diaId)`, `refeicoesDoDia(diaId)`, `adicionarRefeicaoAoDia(diaId, etiqueta, modeloId?)`, `removerRefeicaoDoDia(diaId, refId)`, `salvarCopiaNoModelo(copiaId)`, `macrosDoDia(diaId)`, `limparCopiasOrfas()`, `metasAtuais()` (metas manuais, ou do perfil, ou `null`).
+- **Copiar dia (lote 5):** `copiarDiaPara(origemId, [destinos])` substitui o conteúdo de cada dia destino por cópias **independentes** do dia origem (ids novos, `modeloId` preservado; o destino é limpo antes). `clonarRefeicaoComoCopia(refId)` duplica uma cópia em outra cópia efêmera independente. UI: botão "Copiar este dia para outros dias" na `TelaDia` → `TelaCopiarDia` (multi-seleção dos outros 6 dias, "Selecionar todos", confirmação quando há destinos não-vazios).
 
 ## Próximos lotes (planejados)
-5. Backup separado por tipo (alimentos+receitas vs. plano).
+6. Lista de compras gerada a partir da semana (agregação de alimentos por categoria).
+7. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional.

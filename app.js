@@ -245,6 +245,21 @@
     setIdsDoDia(diaId, idsDoDia(diaId).filter(function (x) { return x !== refId; }));
     excluirRefeicao(refId);
   }
+  function clonarRefeicaoComoCopia(refId) {
+    var r = obterRefeicao(refId); if (!r) return null;
+    var c = JSON.parse(JSON.stringify(r));
+    c.id = uid('r-'); c.criadoEm = Date.now(); c.efemera = true; // modeloId preservado se existir
+    c.itens = (c.itens || []).map(function (it) { return Object.assign({}, it, { id: uid('i-') }); });
+    var rs = todasRefeicoes(); rs.push(c); storeSet('refeicoes', rs); return c.id;
+  }
+  function copiarDiaPara(origemId, destinos) {
+    var origem = idsDoDia(origemId);
+    (destinos || []).forEach(function (dest) {
+      if (dest === origemId) return;
+      idsDoDia(dest).forEach(function (rid) { excluirRefeicao(rid); }); // limpa o destino (substitui)
+      setIdsDoDia(dest, origem.map(function (rid) { return clonarRefeicaoComoCopia(rid); }).filter(Boolean));
+    });
+  }
   function salvarCopiaNoModelo(copiaId) {
     var c = obterRefeicao(copiaId); if (!c) return null;
     var conteudo = { nome: c.nome, etiqueta: c.etiqueta, itens: JSON.parse(JSON.stringify(c.itens || [])) };
@@ -399,7 +414,9 @@
       busca: <g><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></g>,
       mais: <g><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></g>,
       lixo: <g><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></g>,
-      lapis: <g><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></g>
+      lapis: <g><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></g>,
+      check: <polyline points="20 6 9 17 4 12" />,
+      carrinho: <g><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></g>
     };
     var sz = props.size || 24;
     return <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={props.color || 'currentColor'} strokeWidth={props.strokeWidth || 2} strokeLinecap="round" strokeLinejoin="round">{paths[props.nome]}</svg>;
@@ -1072,7 +1089,45 @@
         {faltantes.length ? (addOutro
           ? <div style={S.card}><div style={Object.assign({}, S.cardTitle, { margin: '0 0 10px' })}>Adicionar em outro momento</div>{faltantes.map(function (e) { return <button key={e.id} style={Object.assign({}, S.btnGhost, { marginBottom: 8 })} onClick={function () { setAddOutro(false); props.onAdicionar(e.id); }}>{e.rotulo}</button>; })}<button style={Object.assign({}, S.btnGhost, { borderColor: 'transparent', color: C.ink2 })} onClick={function () { setAddOutro(false); }}>Cancelar</button></div>
           : <button style={S.btnGhost} onClick={function () { setAddOutro(true); }}>+ Adicionar em outro momento</button>) : null}
+        {refs.length ? <button style={Object.assign({}, S.btnGhost, { marginTop: 4 })} onClick={props.onCopiar}>Copiar este dia para outros dias</button> : null}
         <div style={{ height: 8 }} />
+      </div>
+    );
+  }
+
+  function TelaCopiarDia(props) {
+    var origem = DIAS.filter(function (d) { return d.id === props.origemId; })[0] || { rotulo: 'Dia' };
+    var outros = DIAS.filter(function (d) { return d.id !== props.origemId; });
+    var sst = useState({}); var sel = sst[0], setSel = sst[1];
+    var cst = useState(false); var confirmando = cst[0], setConfirmando = cst[1];
+    function toggle(id) { var n = Object.assign({}, sel); if (n[id]) delete n[id]; else n[id] = true; setSel(n); setConfirmando(false); }
+    function selTodos() { var n = {}; outros.forEach(function (d) { n[d.id] = true; }); setSel(n); setConfirmando(false); }
+    var escolhidos = outros.filter(function (d) { return sel[d.id]; }).map(function (d) { return d.id; });
+    var comConteudo = outros.filter(function (d) { return sel[d.id] && idsDoDia(d.id).length > 0; });
+    function tentarCopiar() {
+      if (escolhidos.length === 0) return;
+      if (comConteudo.length && !confirmando) { setConfirmando(true); return; }
+      props.onConfirmar(escolhidos);
+    }
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo={'Copiar ' + origem.rotulo} onVoltar={props.onVoltar} />
+        <p style={S.sub}>Os dias escolhidos passam a ter uma cópia de {origem.rotulo} (substituindo o que houver neles). Depois você pode ajustar cada um sem afetar os outros.</p>
+        <div style={S.card}>
+          {outros.map(function (d, i) {
+            var on = !!sel[d.id], n = idsDoDia(d.id).length;
+            return (
+              <button key={d.id} onClick={function () { toggle(d.id); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 2px', background: 'none', border: 'none', borderBottom: i < outros.length - 1 ? '1px solid ' + C.line : 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color="#fff" /> : null}</span>
+                <span style={{ flex: 1, fontSize: 15, color: C.ink }}>{d.rotulo}</span>
+                <span style={{ fontSize: 12, color: C.ink2 }}>{n === 0 ? 'vazio' : (n + (n === 1 ? ' refeição' : ' refeições'))}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button style={Object.assign({}, S.btnGhost, { marginBottom: 16 })} onClick={selTodos}>Selecionar todos</button>
+        {confirmando ? <div style={Object.assign({}, S.card, { background: '#FBF4E8', border: '1px solid #F0E0C0' })}><div style={Object.assign({}, S.note, { color: C.ink })}>Isto vai substituir o que já existe em: {comConteudo.map(function (d) { return d.rotulo; }).join(', ')}.</div></div> : null}
+        <button style={Object.assign({}, S.btn, escolhidos.length === 0 ? { opacity: 0.5 } : {})} disabled={escolhidos.length === 0} onClick={tentarCopiar}>{confirmando ? 'Confirmar e substituir' : ('Copiar para ' + escolhidos.length + ' ' + (escolhidos.length === 1 ? 'dia' : 'dias'))}</button>
       </div>
     );
   }
@@ -1098,9 +1153,15 @@
         onSair={function () { var r = obterRefeicao(nav.refId); if (r && !(r.nome || '').trim() && (!r.itens || r.itens.length === 0)) removerRefeicaoDoDia(props.diaId, nav.refId); bump(); setNav({ t: 'dia' }); }}
         acoes={acoes} />;
     }
+    if (nav.t === 'copiar') {
+      return <TelaCopiarDia origemId={props.diaId}
+        onVoltar={function () { setNav({ t: 'dia' }); }}
+        onConfirmar={function (destinos) { copiarDiaPara(props.diaId, destinos); bump(); setNav({ t: 'dia' }); }} />;
+    }
     return <TelaDia diaId={props.diaId} versao={versao} onVoltar={props.onVoltar}
       onAdicionar={function (etq) { setNav({ t: 'escolher', etiqueta: etq }); }}
-      onEditar={function (refId) { setNav({ t: 'editar', refId: refId }); }} />;
+      onEditar={function (refId) { setNav({ t: 'editar', refId: refId }); }}
+      onCopiar={function () { setNav({ t: 'copiar' }); }} />;
   }
 
   function PainelSemana() {
@@ -1153,6 +1214,7 @@
     macrosItem: macrosItem, macrosRefeicao: macrosRefeicao, ETIQUETAS: ETIQUETAS,
     DIAS: DIAS, idsDoDia: idsDoDia, refeicoesDoDia: refeicoesDoDia, adicionarRefeicaoAoDia: adicionarRefeicaoAoDia,
     removerRefeicaoDoDia: removerRefeicaoDoDia, salvarCopiaNoModelo: salvarCopiaNoModelo, macrosDoDia: macrosDoDia,
+    copiarDiaPara: copiarDiaPara, clonarRefeicaoComoCopia: clonarRefeicaoComoCopia,
     limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais,
     storeGet: storeGet, storeSet: storeSet
   };
