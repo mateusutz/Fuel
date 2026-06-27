@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 3 (Perfil + motor + Biblioteca de alimentos + Refeições-modelo).
-- **CACHE_VERSION atual:** `fuel-v3` (em `sw.js`).
+- **Lote concluído:** 4 (Perfil + motor + Biblioteca de alimentos + Refeições-modelo + Semana e Dia).
+- **CACHE_VERSION atual:** `fuel-v4` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -36,9 +36,13 @@ Prefixo `fuel:` em todas. Hoje:
   - `alimentosOverride` — `{ '<id>': { campos editados…, oculto?:true } }`. Só para ids `taco-*`. Editar um item da TACO grava um override; "remover" grava `oculto:true` (reversível via backup).
   - `porcoes` — `{ '<alimentoId>': [ {id, rotulo, g} ] }`. Materializa só quando o usuário edita as porções daquele alimento; senão usa `FUEL_PORCOES` da semente.
 - **Refeições-modelo (lote 3):**
-  - `refeicoes` — array: `{ id:'r-<ts>', nome, etiqueta, itens:[…], criadoEm }`. `etiqueta` ∈ `''|cafe|lanche_manha|almoco|lanche|jantar|ceia`.
-    - Item: `{ id:'i-<ts>', alimentoId, gramas, medida }`. `gramas` é a verdade; `medida` é o rótulo amigável ("2× concha média" ou "150 g"). Macros derivados do alimento atual (sempre em dia).
+  - `refeicoes` — array: `{ id:'r-<uid>', nome, etiqueta, itens:[…], criadoEm }`. `etiqueta` ∈ `''|cafe|lanche_manha|almoco|lanche|jantar|ceia`.
+    - Item: `{ id:'i-<uid>', alimentoId, gramas, medida }`. `gramas` é a verdade; `medida` é o rótulo amigável ("2× concha média" ou "150 g"). Macros derivados do alimento atual (sempre em dia).
+    - **Cópias de dia (lote 4):** uma refeição em `refeicoes` pode ter `efemera:true` e `modeloId`. É a cópia que vive dentro de um dia — não aparece na biblioteca (filtrada por `refeicoesModelo()`) e é coletada como lixo se nenhum dia a referencia.
   - `bibliotecaSecao` — `'alimentos' | 'refeicoes'` (seção ativa da aba Biblioteca).
+- **Semana e Dia (lote 4):**
+  - `semana` — `{ dias: { seg:[refId…], ter:[…], qua, qui, sex, sab, dom } }`. Semana genérica que se repete; cada dia guarda **ids** de refeições (as cópias). 7 dias em `DIAS`; momentos sempre visíveis em `MOMENTOS_PRINCIPAIS` (café, almoço, lanche, jantar).
+  - **Ids únicos:** todos os ids (`u-/r-/i-/p-`) são gerados por `uid(prefixo)` = `Date.now()` em base36 + contador, evitando colisões em ações rápidas (bug do `Date.now()` puro corrigido no lote 4).
 
 Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm, dados:{...todas as chaves...} }`.
 
@@ -61,14 +65,14 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
      proteína (até 1,6 g/kg) se proteína+gordura excederem a meta.
 
 ## Componentes principais (`app.js`)
-- `App` — navegação inferior (3 abas) + roteamento simples por estado.
+- `App` — navegação inferior (3 abas) + roteamento simples por estado; limpa cópias órfãs ao iniciar.
 - `TelaPerfil` — formulário, cálculo reativo, edição manual, backup.
-- `TelaEmBreve` — placeholder da Semana (próximo lote).
-- `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual** (reaproveitado no detalhe do alimento, "por 100 g").
+- `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual** (reaproveitado no detalhe do alimento, no total da refeição e no resumo do dia).
 - `EditorManual` — sobrescreve metas à mão.
 - `CardBackup` — exportar/importar JSON.
 - **Biblioteca (lote 2):** `TelaBiblioteca` (wrapper, alterna seção via `SeletorSecao`), `PainelAlimentos` (lista→detalhe→form), `ListaAlimentos`, `ItemAlimento`, `TelaDetalhe`, `FormAlimento`, `FormPorcao`.
-- **Refeições (lote 3):** `PainelRefeicoes` (lista→refeição→escolher alimento→quantidade), `ListaRefeicoes` (agrupada por etiqueta), `ItemRefeicaoCard`, `TelaRefeicao` (editor com auto-save; anel do total), `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas).
+- **Refeições (lote 3 + 4):** `PainelRefeicoes` (biblioteca), `ListaRefeicoes` (só modelos, agrupada por etiqueta), `ItemRefeicaoCard`, `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas). O editor foi refatorado: `TelaRefeicao` agora recebe `acoes` (lista de botões `{label,onClick,danger,confirmar}`) e `titulo`; `RefeicaoEditor` encapsula a navegação editar→escolher alimento→quantidade e opera por id — **reutilizado pela biblioteca e pelo dia**.
+- **Semana e Dia (lote 4):** `PainelSemana` (lista↔dia), `TelaSemana` (7 cards com kcal e barra vs. meta), `PainelDia` (dia↔escolher modelo↔editar cópia), `TelaDia` (resumo + momentos com "+ adicionar"), `CardResumoDia` (anel do dia + barras vs. meta + texto No alvo/Faltam/acima), `TelaEscolherModelo` (modelos do momento + montar na hora), `LinhaMacroMeta` (barra consumido/meta).
 - Reutilizáveis: `Campo`, `Select`, `Segmented`, `SeletorSecao`, `LinhaMacro`, `Icone`, `Cabecalho`.
 
 ## Refeições-modelo (lote 3)
@@ -92,7 +96,12 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
   unitários do motor → **incrementar CACHE_VERSION** → publicar via API do GitHub →
   aguardar o workflow concluir → reabrir o app (às vezes 2x) para o cache novo assumir.
 
+## Semana e Dia (lote 4)
+- Semana genérica de 7 dias (`DIAS`: seg…dom) que se repete — sem datas reais; é o molde semanal.
+- Cada dia mostra os momentos sempre à mostra (`MOMENTOS_PRINCIPAIS`) + os usados, cada um com "+ adicionar". Adicionar = puxar um modelo (vira **cópia** editável só naquele dia) ou montar na hora. Editar a cópia não afeta o modelo; "salvar no/como modelo" propaga.
+- O resumo do dia (`CardResumoDia`) traz o anel de calorias do dia vs. meta do Perfil + barras de macro vs. metas.
+- **Funções (em `window.FuelEngine`):** `refeicoesModelo()`, `idsDoDia(diaId)`, `refeicoesDoDia(diaId)`, `adicionarRefeicaoAoDia(diaId, etiqueta, modeloId?)`, `removerRefeicaoDoDia(diaId, refId)`, `salvarCopiaNoModelo(copiaId)`, `macrosDoDia(diaId)`, `limparCopiasOrfas()`, `metasAtuais()` (metas manuais, ou do perfil, ou `null`).
+
 ## Próximos lotes (planejados)
-4. Semana genérica (segunda–domingo que repete) + Dia com o anel de calorias e slots por momento; refeições-modelo entram nos dias; cópia editável por dia + "salvar no modelo".
 5. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional.

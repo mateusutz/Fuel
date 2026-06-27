@@ -49,6 +49,8 @@
     var r = Math.round(n * 10) / 10;
     return (Number.isInteger(r) ? r.toString() : r.toFixed(1)).replace('.', ',');
   }
+  var _uidSeq = 0;
+  function uid(p) { _uidSeq++; return p + Date.now().toString(36) + _uidSeq.toString(36); }
 
   /* ============================================================
      MOTOR DE CÁLCULO (lote 1)
@@ -126,7 +128,7 @@
     return o ? Object.assign({}, a, o, { origem: 'taco' }) : Object.assign({}, a, { origem: 'taco' });
   }
   function criarAlimento(dados) {
-    var us = _usuario(); var id = 'u-' + Date.now();
+    var us = _usuario(); var id = uid('u-');
     us.push(Object.assign({ id: id, criadoEm: Date.now() }, dados)); storeSet('alimentosUsuario', us); return id;
   }
   function editarAlimento(id, campos) {
@@ -178,7 +180,7 @@
   function todasRefeicoes() { return storeGet('refeicoes', []); }
   function obterRefeicao(id) { var r = todasRefeicoes().filter(function (x) { return x.id === id; })[0]; return r || null; }
   function criarRefeicao(dados) {
-    var rs = todasRefeicoes(); var id = 'r-' + Date.now();
+    var rs = todasRefeicoes(); var id = uid('r-');
     rs.push(Object.assign({ id: id, nome: '', etiqueta: '', itens: [], criadoEm: Date.now() }, dados));
     storeSet('refeicoes', rs); return id;
   }
@@ -190,9 +192,9 @@
   function duplicarRefeicao(id) {
     var r = obterRefeicao(id); if (!r) return null;
     var copia = JSON.parse(JSON.stringify(r));
-    copia.id = 'r-' + Date.now(); copia.criadoEm = Date.now();
+    copia.id = uid('r-'); copia.criadoEm = Date.now();
     copia.nome = (r.nome || 'Refeição') + ' (cópia)';
-    copia.itens = (copia.itens || []).map(function (it, i) { return Object.assign({}, it, { id: 'i-' + Date.now() + '-' + i }); });
+    copia.itens = (copia.itens || []).map(function (it, i) { return Object.assign({}, it, { id: uid('i-') + '-' + i }); });
     var rs = todasRefeicoes(); rs.push(copia); storeSet('refeicoes', rs); return copia.id;
   }
   function macrosItem(item) {
@@ -204,6 +206,69 @@
     var t = { kcal: 0, prot: 0, carbo: 0, gord: 0 };
     ((ref && ref.itens) || []).forEach(function (it) { var m = macrosItem(it); t.kcal += m.kcal; t.prot += m.prot; t.carbo += m.carbo; t.gord += m.gord; });
     return { kcal: Math.round(t.kcal), prot: Math.round(t.prot * 10) / 10, carbo: Math.round(t.carbo * 10) / 10, gord: Math.round(t.gord * 10) / 10 };
+  }
+  function refeicoesModelo() { return todasRefeicoes().filter(function (r) { return !r.efemera; }); }
+
+  /* ============================================================
+     CAMADA DE DADOS — SEMANA E DIA (lote 4)
+     Semana genérica: 7 dias que se repetem. Cada dia guarda uma lista de
+     IDs de refeições. Ao puxar um modelo para o dia, criamos uma CÓPIA
+     (efemera:true, modeloId) — editável só naquele dia. "Salvar no modelo"
+     propaga de volta. Cópias órfãs são limpas na carga.
+     ============================================================ */
+  var DIAS = [
+    { id: 'seg', rotulo: 'Segunda', curto: 'Seg' }, { id: 'ter', rotulo: 'Terça', curto: 'Ter' },
+    { id: 'qua', rotulo: 'Quarta', curto: 'Qua' }, { id: 'qui', rotulo: 'Quinta', curto: 'Qui' },
+    { id: 'sex', rotulo: 'Sexta', curto: 'Sex' }, { id: 'sab', rotulo: 'Sábado', curto: 'Sáb' },
+    { id: 'dom', rotulo: 'Domingo', curto: 'Dom' }
+  ];
+  var MOMENTOS_PRINCIPAIS = ['cafe', 'almoco', 'lanche', 'jantar'];
+
+  function semanaDados() { var s = storeGet('semana', null); if (!s || typeof s !== 'object') s = { dias: {} }; if (!s.dias) s.dias = {}; return s; }
+  function idsDoDia(diaId) { return semanaDados().dias[diaId] || []; }
+  function setIdsDoDia(diaId, ids) { var s = semanaDados(); s.dias[diaId] = ids; storeSet('semana', s); }
+  function refeicoesDoDia(diaId) { return idsDoDia(diaId).map(obterRefeicao).filter(Boolean); }
+
+  function duplicarComoCopia(modeloId, etiqueta) {
+    var m = obterRefeicao(modeloId); if (!m) return null;
+    var c = JSON.parse(JSON.stringify(m));
+    c.id = uid('r-'); c.criadoEm = Date.now(); c.efemera = true; c.modeloId = modeloId;
+    if (etiqueta) c.etiqueta = etiqueta;
+    c.itens = (c.itens || []).map(function (it, i) { return Object.assign({}, it, { id: uid('i-') + '-' + i }); });
+    var rs = todasRefeicoes(); rs.push(c); storeSet('refeicoes', rs); return c.id;
+  }
+  function adicionarRefeicaoAoDia(diaId, etiqueta, modeloId) {
+    var novo = modeloId ? duplicarComoCopia(modeloId, etiqueta) : criarRefeicao({ etiqueta: etiqueta || '', efemera: true });
+    var ids = idsDoDia(diaId).slice(); ids.push(novo); setIdsDoDia(diaId, ids); return novo;
+  }
+  function removerRefeicaoDoDia(diaId, refId) {
+    setIdsDoDia(diaId, idsDoDia(diaId).filter(function (x) { return x !== refId; }));
+    excluirRefeicao(refId);
+  }
+  function salvarCopiaNoModelo(copiaId) {
+    var c = obterRefeicao(copiaId); if (!c) return null;
+    var conteudo = { nome: c.nome, etiqueta: c.etiqueta, itens: JSON.parse(JSON.stringify(c.itens || [])) };
+    if (c.modeloId && obterRefeicao(c.modeloId)) { editarRefeicao(c.modeloId, conteudo); return c.modeloId; }
+    var novoId = criarRefeicao({ nome: c.nome || 'Nova refeição', etiqueta: c.etiqueta, itens: conteudo.itens });
+    editarRefeicao(copiaId, { modeloId: novoId }); return novoId;
+  }
+  function macrosDoDia(diaId) {
+    var t = { kcal: 0, prot: 0, carbo: 0, gord: 0 };
+    refeicoesDoDia(diaId).forEach(function (r) { var m = macrosRefeicao(r); t.kcal += m.kcal; t.prot += m.prot; t.carbo += m.carbo; t.gord += m.gord; });
+    return { kcal: Math.round(t.kcal), prot: Math.round(t.prot * 10) / 10, carbo: Math.round(t.carbo * 10) / 10, gord: Math.round(t.gord * 10) / 10 };
+  }
+  function limparCopiasOrfas() {
+    var s = semanaDados(), usados = {};
+    Object.keys(s.dias).forEach(function (d) { (s.dias[d] || []).forEach(function (id) { usados[id] = true; }); });
+    var rs = todasRefeicoes(), limpo = rs.filter(function (r) { return !r.efemera || usados[r.id]; });
+    if (limpo.length !== rs.length) storeSet('refeicoes', limpo);
+  }
+  function metasAtuais() {
+    var manuais = storeGet('metasManuais', null);
+    if (manuais) return Object.assign({}, manuais, { manual: true });
+    var p = normalizarPerfil(carregarPerfil());
+    if (!perfilValido(p)) return null;
+    return calcularMetas(p);
   }
 
   /* ============================================================
@@ -529,7 +594,7 @@
     function salvar() {
       var g = parseNum(v.g);
       if (!v.rotulo.trim() || isNaN(g) || g <= 0) return;
-      props.onSalvar({ id: (props.porcao && props.porcao.id) || ('p-' + Date.now()), rotulo: v.rotulo.trim(), g: Math.round(g * 10) / 10 });
+      props.onSalvar({ id: (props.porcao && props.porcao.id) || (uid('p-')), rotulo: v.rotulo.trim(), g: Math.round(g * 10) / 10 });
     }
     return (
       <div style={{ background: '#F4F7F4', border: '1px solid ' + C.line, borderRadius: 12, padding: 14, marginBottom: 10 }}>
@@ -687,7 +752,7 @@
 
   function ListaRefeicoes(props) {
     var _ = props.versao;
-    var refs = todasRefeicoes();
+    var refs = refeicoesModelo();
     var grupos = {};
     refs.forEach(function (r) { var k = r.etiqueta || ''; (grupos[k] = grupos[k] || []).push(r); });
     var chaves = Object.keys(grupos).sort(function (a, b) { return (a ? etiquetaOrdem(a) : 99) - (b ? etiquetaOrdem(b) : 99); });
@@ -788,15 +853,15 @@
     var tst = useState(0); var tick = tst[0], setTick = tst[1]; var _ = tick;
     function rerender() { setTick(function (n) { return n + 1; }); }
     var ref = obterRefeicao(id);
-    var cst = useState(false); var confirmar = cst[0], setConfirmar = cst[1];
-    if (!ref) { return <div style={S.screen}><Cabecalho titulo="Refeição" onVoltar={props.onVoltar} /><div style={S.card}><div style={S.note}>Refeição não encontrada.</div></div></div>; }
+    var cst = useState(-1); var confirmIdx = cst[0], setConfirmIdx = cst[1];
+    if (!ref) { return <div style={S.screen}><Cabecalho titulo={props.titulo || 'Refeição'} onVoltar={props.onVoltar} /><div style={S.card}><div style={S.note}>Refeição não encontrada.</div></div></div>; }
     function setCampo(campo, val) { editarRefeicao(id, { [campo]: val }); rerender(); }
     function removerItem(itemId) { editarRefeicao(id, { itens: (ref.itens || []).filter(function (it) { return it.id !== itemId; }) }); rerender(); }
     var m = macrosRefeicao(ref), totalK = m.prot * 4 + m.carbo * 4 + m.gord * 9;
-    var itens = ref.itens || [];
+    var itens = ref.itens || [], acoes = props.acoes || [];
     return (
       <div style={S.screen}>
-        <Cabecalho titulo="Refeição" onVoltar={props.onVoltar} />
+        <Cabecalho titulo={props.titulo || 'Refeição'} onVoltar={props.onVoltar} />
         <div style={S.card}>
           <Campo label="Nome" inputMode="text" placeholder="ex.: Café da manhã forte" value={ref.nome} onChange={function (x) { setCampo('nome', x); }} />
           <Select label="Momento do dia" value={ref.etiqueta || ''} onChange={function (x) { setCampo('etiqueta', x); }} options={[{ value: '', label: 'Sem etiqueta' }].concat(ETIQUETAS.map(function (e) { return { value: e.id, label: e.rotulo }; }))} />
@@ -835,13 +900,36 @@
           })}
         </div>
 
-        <button style={S.btnGhost} onClick={props.onDuplicar}>Duplicar refeição</button>
-        <div style={{ height: 10 }} />
-        {!confirmar ? <button style={Object.assign({}, S.btnGhost, { color: '#B0413B', borderColor: '#F0DAD8' })} onClick={function () { setConfirmar(true); }}>Excluir refeição</button>
-          : <div style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>Excluir esta refeição de vez?</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, { background: '#C0473F' })} onClick={props.onExcluir}>Sim, excluir</button><button style={S.btnGhost} onClick={function () { setConfirmar(false); }}>Cancelar</button></div></div>}
+        {acoes.map(function (ac, i) {
+          if (confirmIdx === i) {
+            return <div key={i} style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>{ac.confirmar}</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, ac.danger ? { background: '#C0473F' } : {})} onClick={function () { setConfirmIdx(-1); ac.onClick(); }}>Confirmar</button><button style={S.btnGhost} onClick={function () { setConfirmIdx(-1); }}>Cancelar</button></div></div>;
+          }
+          return <div key={i}><button style={Object.assign({}, S.btnGhost, ac.danger ? { color: '#B0413B', borderColor: '#F0DAD8' } : {})} onClick={function () { if (ac.confirmar) setConfirmIdx(i); else ac.onClick(); }}>{ac.label}</button><div style={{ height: 10 }} /></div>;
+        })}
         <div style={{ height: 8 }} />
       </div>
     );
+  }
+
+  function RefeicaoEditor(props) {
+    var nst = useState({ t: 'refeicao' }); var nav = nst[0], setNav = nst[1];
+    if (nav.t === 'addAlim') {
+      return <SeletorAlimento onVoltar={function () { setNav({ t: 'refeicao' }); }} onEscolher={function (a) { setNav({ t: 'qtd', alimento: a }); }} />;
+    }
+    if (nav.t === 'qtd') {
+      return <SeletorQuantidade alimento={nav.alimento} item={nav.item}
+        onVoltar={function () { setNav(nav.item ? { t: 'refeicao' } : { t: 'addAlim' }); }}
+        onConfirmar={function (q) {
+          var r = obterRefeicao(props.id); var itens = (r.itens || []).slice();
+          if (nav.item) { for (var i = 0; i < itens.length; i++) if (itens[i].id === nav.item.id) { itens[i] = Object.assign({}, itens[i], { gramas: q.gramas, medida: q.medida }); break; } }
+          else { itens.push({ id: uid('i-'), alimentoId: nav.alimento.id, gramas: q.gramas, medida: q.medida }); }
+          editarRefeicao(props.id, { itens: itens }); setNav({ t: 'refeicao' });
+        }} />;
+    }
+    return <TelaRefeicao id={props.id} titulo={props.titulo} onVoltar={props.onSair}
+      onAdicionar={function () { setNav({ t: 'addAlim' }); }}
+      onEditarItem={function (it) { setNav({ t: 'qtd', alimento: obterAlimento(it.alimentoId) || { id: it.alimentoId, nome: 'Alimento', kcal: 0 }, item: it }); }}
+      acoes={props.acoes} />;
   }
 
   function PainelRefeicoes(props) {
@@ -853,25 +941,11 @@
       bump(); setNav({ t: 'lista' });
     }
     if (nav.t === 'refeicao') {
-      return <TelaRefeicao id={nav.id}
-        onVoltar={function () { voltarLista(nav.id); }}
-        onAdicionar={function () { setNav({ t: 'addAlim', id: nav.id }); }}
-        onEditarItem={function (it) { setNav({ t: 'qtd', id: nav.id, alimento: obterAlimento(it.alimentoId) || { id: it.alimentoId, nome: 'Alimento', kcal: 0 }, item: it }); }}
-        onDuplicar={function () { var novo = duplicarRefeicao(nav.id); setNav({ t: 'refeicao', id: novo }); }}
-        onExcluir={function () { excluirRefeicao(nav.id); bump(); setNav({ t: 'lista' }); }} />;
-    }
-    if (nav.t === 'addAlim') {
-      return <SeletorAlimento onVoltar={function () { setNav({ t: 'refeicao', id: nav.id }); }} onEscolher={function (a) { setNav({ t: 'qtd', id: nav.id, alimento: a }); }} />;
-    }
-    if (nav.t === 'qtd') {
-      return <SeletorQuantidade alimento={nav.alimento} item={nav.item}
-        onVoltar={function () { setNav(nav.item ? { t: 'refeicao', id: nav.id } : { t: 'addAlim', id: nav.id }); }}
-        onConfirmar={function (q) {
-          var r = obterRefeicao(nav.id); var itens = (r.itens || []).slice();
-          if (nav.item) { for (var i = 0; i < itens.length; i++) if (itens[i].id === nav.item.id) { itens[i] = Object.assign({}, itens[i], { gramas: q.gramas, medida: q.medida }); break; } }
-          else { itens.push({ id: 'i-' + Date.now(), alimentoId: nav.alimento.id, gramas: q.gramas, medida: q.medida }); }
-          editarRefeicao(nav.id, { itens: itens }); setNav({ t: 'refeicao', id: nav.id });
-        }} />;
+      var acoes = [
+        { label: 'Duplicar refeição', onClick: function () { var novo = duplicarRefeicao(nav.id); setNav({ t: 'refeicao', id: novo }); } },
+        { label: 'Excluir refeição', danger: true, confirmar: 'Excluir esta refeição de vez?', onClick: function () { excluirRefeicao(nav.id); bump(); setNav({ t: 'lista' }); } }
+      ];
+      return <RefeicaoEditor id={nav.id} titulo="Refeição" onSair={function () { voltarLista(nav.id); }} acoes={acoes} />;
     }
     return <ListaRefeicoes versao={versao} onSecao={props.onSecao} onNova={function () { setNav({ t: 'refeicao', id: criarRefeicao({}) }); }} onAbrir={function (id) { setNav({ t: 'refeicao', id: id }); }} />;
   }
@@ -885,20 +959,157 @@
   }
 
   /* ============================================================
-     SEMANA — placeholder (lote 4)
+     SEMANA E DIA (lote 4)
      ============================================================ */
-  function TelaEmBreve(props) {
+  function LinhaMacroMeta(props) {
+    var pct = props.meta > 0 ? Math.min(100, Math.round((props.atual / props.meta) * 100)) : 0;
     return (
-      <div style={S.screen}>
-        <h1 style={S.h1}>{props.titulo}</h1>
-        <p style={S.sub}>{props.sub}</p>
-        <div style={Object.assign({}, S.card, { textAlign: 'center', padding: '40px 18px' })}>
-          <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 14, background: '#EAF5EE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{props.icone}</div>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Em construção</div>
-          <div style={S.note}>{props.descricao}</div>
+      <div style={{ marginBottom: 11 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: props.color, flex: '0 0 auto' }} />
+          <span style={{ fontSize: 13.5, color: C.ink, flex: 1 }}>{props.nome}</span>
+          <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{fmt(props.atual)}<span style={{ color: C.ink2, fontWeight: 400 }}> / {props.meta} g</span></span>
+        </div>
+        <div style={{ height: 6, background: C.line, borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ width: pct + '%', height: '100%', background: props.color, borderRadius: 999 }} />
         </div>
       </div>
     );
+  }
+
+  function CardResumoDia(props) {
+    var m = props.macros, metas = props.metas, totalK = m.prot * 4 + m.carbo * 4 + m.gord * 9;
+    return (
+      <div style={S.card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <AnelMacros kcal={m.kcal} unidade={metas ? ('de ' + metas.kcal + ' kcal') : 'kcal'} protKcal={m.prot * 4} carboKcal={m.carbo * 4} fatKcal={m.gord * 9} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {metas
+              ? [<LinhaMacroMeta key="p" nome="Proteína" atual={m.prot} meta={metas.proteinaG} color={C.prot} />, <LinhaMacroMeta key="c" nome="Carboidrato" atual={m.carbo} meta={metas.carboG} color={C.carb} />, <LinhaMacroMeta key="g" nome="Gordura" atual={m.gord} meta={metas.gorduraG} color={C.fat} />]
+              : [<LinhaMacro key="p" nome="Proteína" gramas={fmt(m.prot)} kcal={m.prot * 4} totalKcal={totalK} color={C.prot} />, <LinhaMacro key="c" nome="Carboidrato" gramas={fmt(m.carbo)} kcal={m.carbo * 4} totalKcal={totalK} color={C.carb} />, <LinhaMacro key="g" nome="Gordura" gramas={fmt(m.gord)} kcal={m.gord * 9} totalKcal={totalK} color={C.fat} />]}
+          </div>
+        </div>
+        {metas ? <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid ' + C.line, fontSize: 13, color: C.ink2 }}>
+          {(function () {
+            var d = m.kcal - metas.kcal, abs = Math.abs(d);
+            if (abs <= 50) return <span><b style={{ color: C.brandDark }}>No alvo</b> — {m.kcal} de {metas.kcal} kcal planejadas.</span>;
+            if (d < 0) return <span><b style={{ color: C.ink }}>Faltam {abs} kcal</b> para a meta de {metas.kcal}.</span>;
+            return <span><b style={{ color: '#B0413B' }}>{abs} kcal acima</b> da meta de {metas.kcal}.</span>;
+          })()}
+        </div> : <div style={Object.assign({}, S.note, { marginTop: 10 })}>Defina seu perfil para comparar o dia com uma meta.</div>}
+      </div>
+    );
+  }
+
+  function TelaSemana(props) {
+    var _ = props.versao, metas = metasAtuais();
+    return (
+      <div style={S.screen}>
+        <h1 style={S.h1}>Semana</h1>
+        <p style={S.sub}>Seu molde de semana típica. Toque num dia para montá-lo.</p>
+        {DIAS.map(function (d) {
+          var m = macrosDoDia(d.id), n = idsDoDia(d.id).length;
+          var pct = metas && metas.kcal > 0 ? Math.min(100, Math.round(m.kcal / metas.kcal * 100)) : 0;
+          return (
+            <button key={d.id} onClick={function () { props.onAbrir(d.id); }} style={{ width: '100%', textAlign: 'left', background: C.card, border: '1px solid ' + C.line, borderRadius: 14, padding: '14px 16px', marginBottom: 10, cursor: 'pointer', display: 'block' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: metas ? 8 : 0 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, color: C.ink, flex: 1 }}>{d.rotulo}</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: C.ink }}>{m.kcal}<span style={{ fontSize: 11, color: C.ink2, fontWeight: 400 }}> kcal</span></span>
+              </div>
+              {metas ? <div style={{ height: 6, background: C.line, borderRadius: 999, overflow: 'hidden' }}><div style={{ width: pct + '%', height: '100%', background: m.kcal > metas.kcal * 1.05 ? C.carb : C.brand, borderRadius: 999 }} /></div> : null}
+              <div style={{ fontSize: 11.5, color: C.ink2, marginTop: 6 }}>{n === 0 ? 'Vazio' : (n + ' ' + (n === 1 ? 'refeição' : 'refeições'))}{metas ? ' · meta ' + metas.kcal + ' kcal' : ''}</div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function TelaEscolherModelo(props) {
+    var modelos = refeicoesModelo();
+    var doMomento = modelos.filter(function (r) { return r.etiqueta === props.etiqueta; });
+    var outros = modelos.filter(function (r) { return r.etiqueta !== props.etiqueta; });
+    function card(r) { return <ItemRefeicaoCard key={r.id} refeicao={r} onClick={function () { props.onModelo(r.id); }} />; }
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo={'Adicionar — ' + etiquetaRotulo(props.etiqueta)} onVoltar={props.onVoltar} />
+        <button style={Object.assign({}, S.btn, { marginBottom: 16 })} onClick={props.onZero}>Montar uma refeição na hora</button>
+        {modelos.length === 0 ? <div style={S.card}><div style={S.note}>Você ainda não salvou refeições-modelo. Monte uma na hora, ou crie modelos em Biblioteca › Refeições.</div></div> : null}
+        {doMomento.length ? <div style={{ marginBottom: 14 }}><div style={{ fontSize: 12, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 2px 8px' }}>Deste momento</div>{doMomento.map(card)}</div> : null}
+        {outros.length ? <div><div style={{ fontSize: 12, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 2px 8px' }}>Outras refeições</div>{outros.map(card)}</div> : null}
+      </div>
+    );
+  }
+
+  function TelaDia(props) {
+    var _ = props.versao;
+    var dia = DIAS.filter(function (d) { return d.id === props.diaId; })[0] || { rotulo: 'Dia' };
+    var metas = metasAtuais(), m = macrosDoDia(props.diaId), refs = refeicoesDoDia(props.diaId);
+    var usados = {}; refs.forEach(function (r) { if (r.etiqueta) usados[r.etiqueta] = true; });
+    var semEtiqueta = refs.filter(function (r) { return !r.etiqueta; });
+    var momentos = ETIQUETAS.filter(function (e) { return MOMENTOS_PRINCIPAIS.indexOf(e.id) >= 0 || usados[e.id]; });
+    var faltantes = ETIQUETAS.filter(function (e) { return momentos.indexOf(e) < 0; });
+    var ast = useState(false); var addOutro = ast[0], setAddOutro = ast[1];
+    function refsDe(etq) { return refs.filter(function (r) { return r.etiqueta === etq; }); }
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo={dia.rotulo} onVoltar={props.onVoltar} />
+        <CardResumoDia macros={m} metas={metas} />
+        {momentos.map(function (e) {
+          var lista = refsDe(e.id);
+          return (
+            <div key={e.id} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 8px' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{e.rotulo}</div>
+                <button onClick={function () { props.onAdicionar(e.id); }} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: C.brandDark, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><Icone nome="mais" size={15} color={C.brandDark} /> Adicionar</button>
+              </div>
+              {lista.length === 0 ? <div style={{ fontSize: 12.5, color: C.ink2, padding: '0 2px 6px' }}>—</div>
+                : lista.map(function (r) { return <ItemRefeicaoCard key={r.id} refeicao={r} onClick={function () { props.onEditar(r.id); }} />; })}
+            </div>
+          );
+        })}
+        {semEtiqueta.length ? <div style={{ marginBottom: 16 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 2px 8px' }}>Sem etiqueta</div>{semEtiqueta.map(function (r) { return <ItemRefeicaoCard key={r.id} refeicao={r} onClick={function () { props.onEditar(r.id); }} />; })}</div> : null}
+        {faltantes.length ? (addOutro
+          ? <div style={S.card}><div style={Object.assign({}, S.cardTitle, { margin: '0 0 10px' })}>Adicionar em outro momento</div>{faltantes.map(function (e) { return <button key={e.id} style={Object.assign({}, S.btnGhost, { marginBottom: 8 })} onClick={function () { setAddOutro(false); props.onAdicionar(e.id); }}>{e.rotulo}</button>; })}<button style={Object.assign({}, S.btnGhost, { borderColor: 'transparent', color: C.ink2 })} onClick={function () { setAddOutro(false); }}>Cancelar</button></div>
+          : <button style={S.btnGhost} onClick={function () { setAddOutro(true); }}>+ Adicionar em outro momento</button>) : null}
+        <div style={{ height: 8 }} />
+      </div>
+    );
+  }
+
+  function PainelDia(props) {
+    var nst = useState({ t: 'dia' }); var nav = nst[0], setNav = nst[1];
+    var vst = useState(0); var versao = vst[0], setVersao = vst[1];
+    function bump() { setVersao(function (n) { return n + 1; }); }
+    if (nav.t === 'escolher') {
+      return <TelaEscolherModelo etiqueta={nav.etiqueta}
+        onVoltar={function () { setNav({ t: 'dia' }); }}
+        onModelo={function (modeloId) { adicionarRefeicaoAoDia(props.diaId, nav.etiqueta, modeloId); bump(); setNav({ t: 'dia' }); }}
+        onZero={function () { setNav({ t: 'editar', refId: adicionarRefeicaoAoDia(props.diaId, nav.etiqueta, null) }); }} />;
+    }
+    if (nav.t === 'editar') {
+      var c = obterRefeicao(nav.refId);
+      var temModelo = c && c.modeloId && obterRefeicao(c.modeloId);
+      var acoes = [
+        { label: temModelo ? 'Salvar no modelo' : 'Salvar como modelo', onClick: function () { salvarCopiaNoModelo(nav.refId); bump(); setNav({ t: 'dia' }); } },
+        { label: 'Remover do dia', danger: true, confirmar: 'Remover esta refeição deste dia?', onClick: function () { removerRefeicaoDoDia(props.diaId, nav.refId); bump(); setNav({ t: 'dia' }); } }
+      ];
+      return <RefeicaoEditor id={nav.refId} titulo="Refeição do dia"
+        onSair={function () { var r = obterRefeicao(nav.refId); if (r && !(r.nome || '').trim() && (!r.itens || r.itens.length === 0)) removerRefeicaoDoDia(props.diaId, nav.refId); bump(); setNav({ t: 'dia' }); }}
+        acoes={acoes} />;
+    }
+    return <TelaDia diaId={props.diaId} versao={versao} onVoltar={props.onVoltar}
+      onAdicionar={function (etq) { setNav({ t: 'escolher', etiqueta: etq }); }}
+      onEditar={function (refId) { setNav({ t: 'editar', refId: refId }); }} />;
+  }
+
+  function PainelSemana() {
+    var nst = useState({ t: 'lista' }); var nav = nst[0], setNav = nst[1];
+    var vst = useState(0); var versao = vst[0], setVersao = vst[1];
+    if (nav.t === 'dia') {
+      return <PainelDia diaId={nav.diaId} onVoltar={function () { setVersao(function (n) { return n + 1; }); setNav({ t: 'lista' }); }} />;
+    }
+    return <TelaSemana versao={versao} onAbrir={function (diaId) { setNav({ t: 'dia', diaId: diaId }); }} />;
   }
 
   /* ============================================================
@@ -909,10 +1120,11 @@
     var ast = useState(function () { return storeGet('abaAtiva', 'perfil'); });
     var aba = ast[0], setAba = ast[1];
     useEffect(function () { storeSet('abaAtiva', aba); }, [aba]);
+    useEffect(function () { limparCopiasOrfas(); }, []);
     var conteudo;
     if (aba === 'perfil') conteudo = <TelaPerfil />;
     else if (aba === 'biblioteca') conteudo = <TelaBiblioteca />;
-    else conteudo = <TelaEmBreve titulo="Semana" sub="Seu plano da semana, dia a dia." icone={<Icone nome="semana" size={24} color={C.brand} />} descricao="Aqui você vai montar os 7 dias com suas refeições e ver as calorias de cada dia. Chega num próximo lote." />;
+    else conteudo = <PainelSemana />;
     return (
       <div style={{ minHeight: '100dvh', background: C.bg }}>
         {conteudo}
@@ -936,9 +1148,12 @@
     todosAlimentos: todosAlimentos, obterAlimento: obterAlimento, criarAlimento: criarAlimento,
     editarAlimento: editarAlimento, excluirAlimento: excluirAlimento, porcoesDe: porcoesDe, salvarPorcoes: salvarPorcoes,
     categorias: categorias, filtrarAlimentos: filtrarAlimentos,
-    todasRefeicoes: todasRefeicoes, obterRefeicao: obterRefeicao, criarRefeicao: criarRefeicao,
+    todasRefeicoes: todasRefeicoes, refeicoesModelo: refeicoesModelo, obterRefeicao: obterRefeicao, criarRefeicao: criarRefeicao,
     editarRefeicao: editarRefeicao, excluirRefeicao: excluirRefeicao, duplicarRefeicao: duplicarRefeicao,
     macrosItem: macrosItem, macrosRefeicao: macrosRefeicao, ETIQUETAS: ETIQUETAS,
+    DIAS: DIAS, idsDoDia: idsDoDia, refeicoesDoDia: refeicoesDoDia, adicionarRefeicaoAoDia: adicionarRefeicaoAoDia,
+    removerRefeicaoDoDia: removerRefeicaoDoDia, salvarCopiaNoModelo: salvarCopiaNoModelo, macrosDoDia: macrosDoDia,
+    limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais,
     storeGet: storeGet, storeSet: storeSet
   };
   if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }
