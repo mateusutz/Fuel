@@ -147,6 +147,65 @@
   }
   function salvarPorcoes(id, lista) { var p = storeGet('porcoes', {}); p[id] = lista; storeSet('porcoes', p); }
 
+  function filtrarAlimentos(busca, cat) {
+    var nb = norm((busca || '').trim());
+    var arr = todosAlimentos().filter(function (a) {
+      if (cat && cat !== 'todas' && a.cat !== cat) return false;
+      if (nb && norm(a.nome).indexOf(nb) < 0) return false;
+      return true;
+    });
+    arr.sort(function (x, y) { return norm(x.nome) < norm(y.nome) ? -1 : 1; });
+    return arr;
+  }
+
+  /* ============================================================
+     CAMADA DE DADOS — REFEIÇÕES-MODELO (lote 3)
+     Uma refeição = nome + etiqueta (momento do dia) + itens.
+     Item = { id, alimentoId, gramas, medida }. gramas é a verdade;
+     os macros são derivados do alimento atual (ficam sempre em dia).
+     ============================================================ */
+  var ETIQUETAS = [
+    { id: 'cafe', rotulo: 'Café da manhã', ordem: 1 },
+    { id: 'lanche_manha', rotulo: 'Lanche da manhã', ordem: 2 },
+    { id: 'almoco', rotulo: 'Almoço', ordem: 3 },
+    { id: 'lanche', rotulo: 'Lanche da tarde', ordem: 4 },
+    { id: 'jantar', rotulo: 'Jantar', ordem: 5 },
+    { id: 'ceia', rotulo: 'Ceia', ordem: 6 }
+  ];
+  function etiquetaRotulo(id) { for (var i = 0; i < ETIQUETAS.length; i++) if (ETIQUETAS[i].id === id) return ETIQUETAS[i].rotulo; return ''; }
+  function etiquetaOrdem(id) { for (var i = 0; i < ETIQUETAS.length; i++) if (ETIQUETAS[i].id === id) return ETIQUETAS[i].ordem; return 99; }
+
+  function todasRefeicoes() { return storeGet('refeicoes', []); }
+  function obterRefeicao(id) { var r = todasRefeicoes().filter(function (x) { return x.id === id; })[0]; return r || null; }
+  function criarRefeicao(dados) {
+    var rs = todasRefeicoes(); var id = 'r-' + Date.now();
+    rs.push(Object.assign({ id: id, nome: '', etiqueta: '', itens: [], criadoEm: Date.now() }, dados));
+    storeSet('refeicoes', rs); return id;
+  }
+  function editarRefeicao(id, campos) {
+    var rs = todasRefeicoes(); for (var i = 0; i < rs.length; i++) if (rs[i].id === id) { rs[i] = Object.assign({}, rs[i], campos); break; }
+    storeSet('refeicoes', rs);
+  }
+  function excluirRefeicao(id) { storeSet('refeicoes', todasRefeicoes().filter(function (r) { return r.id !== id; })); }
+  function duplicarRefeicao(id) {
+    var r = obterRefeicao(id); if (!r) return null;
+    var copia = JSON.parse(JSON.stringify(r));
+    copia.id = 'r-' + Date.now(); copia.criadoEm = Date.now();
+    copia.nome = (r.nome || 'Refeição') + ' (cópia)';
+    copia.itens = (copia.itens || []).map(function (it, i) { return Object.assign({}, it, { id: 'i-' + Date.now() + '-' + i }); });
+    var rs = todasRefeicoes(); rs.push(copia); storeSet('refeicoes', rs); return copia.id;
+  }
+  function macrosItem(item) {
+    var a = obterAlimento(item.alimentoId); if (!a) return { kcal: 0, prot: 0, carbo: 0, gord: 0, faltando: true };
+    var f = (item.gramas || 0) / 100;
+    return { kcal: a.kcal * f, prot: (a.prot || 0) * f, carbo: (a.carbo || 0) * f, gord: (a.gord || 0) * f, faltando: false };
+  }
+  function macrosRefeicao(ref) {
+    var t = { kcal: 0, prot: 0, carbo: 0, gord: 0 };
+    ((ref && ref.itens) || []).forEach(function (it) { var m = macrosItem(it); t.kcal += m.kcal; t.prot += m.prot; t.carbo += m.carbo; t.gord += m.gord; });
+    return { kcal: Math.round(t.kcal), prot: Math.round(t.prot * 10) / 10, carbo: Math.round(t.carbo * 10) / 10, gord: Math.round(t.gord * 10) / 10 };
+  }
+
   /* ============================================================
      PERFIL (lote 1)
      ============================================================ */
@@ -423,36 +482,39 @@
     );
   }
 
+  function SeletorSecao(props) {
+    var abas = [{ id: 'alimentos', rotulo: 'Alimentos' }, { id: 'refeicoes', rotulo: 'Refeições' }];
+    return (
+      <div style={{ display: 'flex', gap: 6, background: '#EEF2EE', padding: 4, borderRadius: 12, marginBottom: 16 }}>
+        {abas.map(function (a) {
+          var on = props.secao === a.id;
+          return <button key={a.id} onClick={function () { props.onSecao(a.id); }} style={{ flex: 1, padding: '9px 8px', fontSize: 13.5, fontWeight: 700, border: 'none', borderRadius: 9, cursor: 'pointer', color: on ? C.brandDark : C.ink2, background: on ? '#fff' : 'transparent', boxShadow: on ? '0 1px 2px rgba(30,42,36,0.08)' : 'none' }}>{a.rotulo}</button>;
+        })}
+      </div>
+    );
+  }
+
   function ListaAlimentos(props) {
     var st = useState(''); var busca = st[0], setBusca = st[1];
     var cst = useState('todas'); var cat = cst[0], setCat = cst[1];
-    var todos = props.versao, _ = todos; // versao força recomputo após mudanças
-    var lista = useMemo(function () {
-      var nb = norm(busca.trim());
-      var arr = todosAlimentos();
-      arr = arr.filter(function (a) {
-        if (cat !== 'todas' && a.cat !== cat) return false;
-        if (nb && norm(a.nome).indexOf(nb) < 0) return false;
-        return true;
-      });
-      arr.sort(function (x, y) { return norm(x.nome) < norm(y.nome) ? -1 : 1; });
-      return arr;
-    }, [busca, cat, props.versao]);
+    var lista = useMemo(function () { return filtrarAlimentos(busca, cat); }, [busca, cat, props.versao]);
     var LIM = 80, visiveis = lista.slice(0, LIM);
     return (
       <div style={S.screen}>
-        <Cabecalho titulo="Biblioteca" acao={<button onClick={props.onNovo} style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.brand, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 12px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}><Icone nome="mais" size={16} color="#fff" /> Novo</button>} />
+        <h1 style={S.h1}>Biblioteca</h1>
+        <SeletorSecao secao="alimentos" onSecao={props.onSecao} />
         <p style={Object.assign({}, S.sub, { marginTop: -8 })}>Seus alimentos e os da tabela TACO. Toque para ver e ajustar.</p>
         <div style={{ position: 'relative', marginBottom: 10 }}>
           <span style={{ position: 'absolute', left: 13, top: 13, color: C.ink2 }}><Icone nome="busca" size={18} /></span>
           <input style={Object.assign({}, S.input, { paddingLeft: 40 })} type="text" placeholder="Buscar alimento…" value={busca} onChange={function (e) { setBusca(e.target.value); }} />
         </div>
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom: 12 }}>
           <select style={Object.assign({}, S.input, { padding: '10px 14px' })} value={cat} onChange={function (e) { setCat(e.target.value); }}>
             <option value="todas">Todas as categorias</option>
             {categorias().map(function (c) { return <option key={c} value={c}>{c}</option>; })}
           </select>
         </div>
+        <button style={Object.assign({}, S.btnGhost, { marginBottom: 14 })} onClick={props.onNovo}>+ Novo alimento</button>
         {lista.length === 0 ? <div style={S.card}><div style={S.note}>Nenhum alimento encontrado. Tente outra busca ou crie um alimento novo.</div></div>
           : visiveis.map(function (a) { return <ItemAlimento key={a.id} alimento={a} onClick={function () { props.onAbrir(a.id); }} />; })}
         {lista.length > LIM ? <div style={Object.assign({}, S.note, { textAlign: 'center', padding: '8px 0' })}>Mostrando {LIM} de {lista.length}. Refine a busca para ver outros.</div> : null}
@@ -591,9 +653,9 @@
     );
   }
 
-  function TelaBiblioteca() {
+  function PainelAlimentos(props) {
     var nst = useState({ t: 'lista' }); var nav = nst[0], setNav = nst[1];
-    var vst = useState(0); var versao = vst[0], setVersao = vst[1]; // força recomputo da lista
+    var vst = useState(0); var versao = vst[0], setVersao = vst[1];
     function bump() { setVersao(function (n) { return n + 1; }); }
     if (nav.t === 'detalhe') {
       return <TelaDetalhe id={nav.id} onVoltar={function () { bump(); setNav({ t: 'lista' }); }} onEditar={function (id) { setNav({ t: 'form', id: id }); }} onExcluido={function () { bump(); setNav({ t: 'lista' }); }} />;
@@ -601,7 +663,225 @@
     if (nav.t === 'form') {
       return <FormAlimento id={nav.id} onVoltar={function () { setNav(nav.id ? { t: 'detalhe', id: nav.id } : { t: 'lista' }); }} onPronto={function (id) { bump(); setNav({ t: 'detalhe', id: id }); }} />;
     }
-    return <ListaAlimentos versao={versao} onNovo={function () { setNav({ t: 'form' }); }} onAbrir={function (id) { setNav({ t: 'detalhe', id: id }); }} />;
+    return <ListaAlimentos versao={versao} onSecao={props.onSecao} onNovo={function () { setNav({ t: 'form' }); }} onAbrir={function (id) { setNav({ t: 'detalhe', id: id }); }} />;
+  }
+
+  /* ---------- Refeições-modelo (lote 3) ---------- */
+  function ItemRefeicaoCard(props) {
+    var r = props.refeicao, m = macrosRefeicao(r), n = (r.itens || []).length;
+    return (
+      <button onClick={props.onClick} style={{ width: '100%', textAlign: 'left', background: C.card, border: '1px solid ' + C.line, borderRadius: 12, padding: '13px 14px', marginBottom: 8, cursor: 'pointer', display: 'block' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, flex: 1, fontFamily: DISPLAY }}>{r.nome || 'Sem nome'}</span>
+          <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: C.ink }}>{m.kcal}<span style={{ fontSize: 11, color: C.ink2, fontWeight: 400 }}> kcal</span></span>
+        </div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 5, fontSize: 12, color: C.ink2 }}>
+          <span><span style={{ color: C.prot }}>●</span> P {fmt(m.prot)}</span>
+          <span><span style={{ color: C.carb }}>●</span> C {fmt(m.carbo)}</span>
+          <span><span style={{ color: C.fat }}>●</span> G {fmt(m.gord)}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11 }}>{n} {n === 1 ? 'item' : 'itens'}</span>
+        </div>
+      </button>
+    );
+  }
+
+  function ListaRefeicoes(props) {
+    var _ = props.versao;
+    var refs = todasRefeicoes();
+    var grupos = {};
+    refs.forEach(function (r) { var k = r.etiqueta || ''; (grupos[k] = grupos[k] || []).push(r); });
+    var chaves = Object.keys(grupos).sort(function (a, b) { return (a ? etiquetaOrdem(a) : 99) - (b ? etiquetaOrdem(b) : 99); });
+    return (
+      <div style={S.screen}>
+        <h1 style={S.h1}>Biblioteca</h1>
+        <SeletorSecao secao="refeicoes" onSecao={props.onSecao} />
+        <p style={Object.assign({}, S.sub, { marginTop: -8 })}>Refeições reutilizáveis combinando alimentos. No próximo lote elas entram nos dias.</p>
+        <button style={Object.assign({}, S.btn, { marginBottom: 16 })} onClick={props.onNova}>+ Nova refeição</button>
+        {refs.length === 0 ? <div style={S.card}><div style={S.note}>Você ainda não criou refeições. Toque em “Nova refeição” para montar a primeira — por exemplo, o seu café da manhã.</div></div> : null}
+        {chaves.map(function (k) {
+          return (
+            <div key={k || 'sem'} style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 2px 8px' }}>{k ? etiquetaRotulo(k) : 'Sem etiqueta'}</div>
+              {grupos[k].map(function (r) { return <ItemRefeicaoCard key={r.id} refeicao={r} onClick={function () { props.onAbrir(r.id); }} />; })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function SeletorAlimento(props) {
+    var st = useState(''); var busca = st[0], setBusca = st[1];
+    var cst = useState('todas'); var cat = cst[0], setCat = cst[1];
+    var lista = useMemo(function () { return filtrarAlimentos(busca, cat); }, [busca, cat]);
+    var LIM = 80, visiveis = lista.slice(0, LIM);
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo="Escolher alimento" onVoltar={props.onVoltar} />
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <span style={{ position: 'absolute', left: 13, top: 13, color: C.ink2 }}><Icone nome="busca" size={18} /></span>
+          <input style={Object.assign({}, S.input, { paddingLeft: 40 })} type="text" placeholder="Buscar alimento…" value={busca} onChange={function (e) { setBusca(e.target.value); }} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <select style={Object.assign({}, S.input, { padding: '10px 14px' })} value={cat} onChange={function (e) { setCat(e.target.value); }}>
+            <option value="todas">Todas as categorias</option>
+            {categorias().map(function (c) { return <option key={c} value={c}>{c}</option>; })}
+          </select>
+        </div>
+        {lista.length === 0 ? <div style={S.card}><div style={S.note}>Nenhum alimento encontrado.</div></div>
+          : visiveis.map(function (a) { return <ItemAlimento key={a.id} alimento={a} onClick={function () { props.onEscolher(a); }} />; })}
+        {lista.length > LIM ? <div style={Object.assign({}, S.note, { textAlign: 'center', padding: '8px 0' })}>Mostrando {LIM} de {lista.length}. Refine a busca.</div> : null}
+      </div>
+    );
+  }
+
+  function SeletorQuantidade(props) {
+    var a = props.alimento;
+    var porcoes = useMemo(function () { return porcoesDe(a.id); }, [a.id]);
+    var temPorcoes = porcoes.length > 0;
+    var init = props.item;
+    var st = useState(function () {
+      var ehGramas = init ? /\bg$/.test(init.medida || '') : !temPorcoes;
+      return { modo: ehGramas ? 'gramas' : 'porcao', porcaoId: temPorcoes ? porcoes[0].id : '', qtd: '1', gramas: init ? String(init.gramas) : '100' };
+    });
+    var v = st[0], setV = st[1];
+    var opcoes = porcoes.concat([{ id: '__g', ehGramas: true }]);
+    function porcaoAtual() { for (var i = 0; i < porcoes.length; i++) if (porcoes[i].id === v.porcaoId) return porcoes[i]; return porcoes[0]; }
+    function calc() {
+      if (v.modo === 'gramas') { var g = parseNum(v.gramas); g = isNaN(g) ? 0 : g; return { g: Math.round(g * 10) / 10, medida: fmt(g) + ' g' }; }
+      var p = porcaoAtual(); var q = parseNum(v.qtd); if (isNaN(q)) q = 0;
+      var miolo = (p ? p.rotulo : '').replace(/^1\s+/, '');
+      return { g: Math.round((p ? p.g * q : 0) * 10) / 10, medida: fmt(q) + '× ' + miolo };
+    }
+    var r = calc();
+    var al = obterAlimento(a.id); var kcal = Math.round((al ? al.kcal : 0) * r.g / 100);
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo={props.item ? 'Editar quantidade' : 'Quantidade'} onVoltar={props.onVoltar} />
+        <div style={S.card}>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: C.ink, marginBottom: 2 }}>{a.nome}</div>
+          <div style={{ fontSize: 12.5, color: C.ink2, marginBottom: 16 }}>{al ? al.kcal : 0} kcal / 100 g</div>
+          <label style={S.label}>Medida</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {opcoes.map(function (p) {
+              var on = p.ehGramas ? v.modo === 'gramas' : (v.modo === 'porcao' && v.porcaoId === p.id);
+              return <button key={p.id} onClick={function () { p.ehGramas ? setV(Object.assign({}, v, { modo: 'gramas' })) : setV(Object.assign({}, v, { modo: 'porcao', porcaoId: p.id })); }} style={{ padding: '9px 12px', fontSize: 13.5, fontWeight: 600, border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? C.brand : '#fff', color: on ? '#fff' : C.ink, borderRadius: 10, cursor: 'pointer' }}>{p.ehGramas ? 'Gramas' : (p.rotulo + ' (' + fmt(p.g) + 'g)')}</button>;
+            })}
+          </div>
+          {v.modo === 'porcao'
+            ? <Campo label="Quantas" inputMode="decimal" value={v.qtd} onChange={function (x) { setV(Object.assign({}, v, { qtd: x })); }} />
+            : <Campo label="Gramas" inputMode="decimal" value={v.gramas} onChange={function (x) { setV(Object.assign({}, v, { gramas: x })); }} />}
+          <div style={{ background: '#F4F7F4', borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13.5, color: C.ink2 }}>Total</span>
+            <span style={{ fontFamily: DISPLAY, fontWeight: 700, color: C.ink }}>{fmt(r.g)} g · {kcal} kcal</span>
+          </div>
+        </div>
+        <button style={S.btn} onClick={function () { if (r.g > 0) props.onConfirmar({ gramas: r.g, medida: r.medida }); }}>{props.item ? 'Salvar' : 'Adicionar à refeição'}</button>
+        <div style={{ height: 10 }} />
+        <button style={S.btnGhost} onClick={props.onVoltar}>Cancelar</button>
+      </div>
+    );
+  }
+
+  function TelaRefeicao(props) {
+    var id = props.id;
+    var tst = useState(0); var tick = tst[0], setTick = tst[1]; var _ = tick;
+    function rerender() { setTick(function (n) { return n + 1; }); }
+    var ref = obterRefeicao(id);
+    var cst = useState(false); var confirmar = cst[0], setConfirmar = cst[1];
+    if (!ref) { return <div style={S.screen}><Cabecalho titulo="Refeição" onVoltar={props.onVoltar} /><div style={S.card}><div style={S.note}>Refeição não encontrada.</div></div></div>; }
+    function setCampo(campo, val) { editarRefeicao(id, { [campo]: val }); rerender(); }
+    function removerItem(itemId) { editarRefeicao(id, { itens: (ref.itens || []).filter(function (it) { return it.id !== itemId; }) }); rerender(); }
+    var m = macrosRefeicao(ref), totalK = m.prot * 4 + m.carbo * 4 + m.gord * 9;
+    var itens = ref.itens || [];
+    return (
+      <div style={S.screen}>
+        <Cabecalho titulo="Refeição" onVoltar={props.onVoltar} />
+        <div style={S.card}>
+          <Campo label="Nome" inputMode="text" placeholder="ex.: Café da manhã forte" value={ref.nome} onChange={function (x) { setCampo('nome', x); }} />
+          <Select label="Momento do dia" value={ref.etiqueta || ''} onChange={function (x) { setCampo('etiqueta', x); }} options={[{ value: '', label: 'Sem etiqueta' }].concat(ETIQUETAS.map(function (e) { return { value: e.id, label: e.rotulo }; }))} />
+        </div>
+
+        <div style={S.card}>
+          <div style={S.cardTitle}>Total da refeição</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <AnelMacros kcal={m.kcal} unidade="kcal" protKcal={m.prot * 4} carboKcal={m.carbo * 4} fatKcal={m.gord * 9} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <LinhaMacro nome="Proteína" gramas={fmt(m.prot)} kcal={m.prot * 4} totalKcal={totalK} color={C.prot} />
+              <LinhaMacro nome="Carboidrato" gramas={fmt(m.carbo)} kcal={m.carbo * 4} totalKcal={totalK} color={C.carb} />
+              <LinhaMacro nome="Gordura" gramas={fmt(m.gord)} kcal={m.gord * 9} totalKcal={totalK} color={C.fat} />
+            </div>
+          </div>
+        </div>
+
+        <div style={S.card}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={Object.assign({}, S.cardTitle, { margin: 0 })}>Alimentos</div>
+            <button onClick={props.onAdicionar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: C.brandDark, fontWeight: 600, fontSize: 13.5, cursor: 'pointer' }}><Icone nome="mais" size={16} color={C.brandDark} /> Adicionar</button>
+          </div>
+          {itens.length === 0 ? <div style={S.note}>Nenhum alimento ainda. Toque em “Adicionar” para incluir o primeiro.</div> : null}
+          {itens.map(function (it, i) {
+            var a = obterAlimento(it.alimentoId), im = macrosItem(it);
+            return (
+              <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 0', borderBottom: i < itens.length - 1 ? '1px solid ' + C.line : 'none' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: C.ink }}>{a ? a.nome : 'Alimento removido'}</div>
+                  <div style={{ fontSize: 12, color: C.ink2 }}>{it.medida} · {fmt(it.gramas)} g · {Math.round(im.kcal)} kcal</div>
+                </div>
+                <button onClick={function () { props.onEditarItem(it); }} style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', color: C.ink2 }}><Icone nome="lapis" size={17} /></button>
+                <button onClick={function () { removerItem(it.id); }} style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', color: C.ink2 }}><Icone nome="lixo" size={17} /></button>
+              </div>
+            );
+          })}
+        </div>
+
+        <button style={S.btnGhost} onClick={props.onDuplicar}>Duplicar refeição</button>
+        <div style={{ height: 10 }} />
+        {!confirmar ? <button style={Object.assign({}, S.btnGhost, { color: '#B0413B', borderColor: '#F0DAD8' })} onClick={function () { setConfirmar(true); }}>Excluir refeição</button>
+          : <div style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>Excluir esta refeição de vez?</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, { background: '#C0473F' })} onClick={props.onExcluir}>Sim, excluir</button><button style={S.btnGhost} onClick={function () { setConfirmar(false); }}>Cancelar</button></div></div>}
+        <div style={{ height: 8 }} />
+      </div>
+    );
+  }
+
+  function PainelRefeicoes(props) {
+    var nst = useState({ t: 'lista' }); var nav = nst[0], setNav = nst[1];
+    var vst = useState(0); var versao = vst[0], setVersao = vst[1];
+    function bump() { setVersao(function (n) { return n + 1; }); }
+    function voltarLista(refId) {
+      if (refId) { var r = obterRefeicao(refId); if (r && !(r.nome || '').trim() && (!r.itens || r.itens.length === 0)) excluirRefeicao(refId); }
+      bump(); setNav({ t: 'lista' });
+    }
+    if (nav.t === 'refeicao') {
+      return <TelaRefeicao id={nav.id}
+        onVoltar={function () { voltarLista(nav.id); }}
+        onAdicionar={function () { setNav({ t: 'addAlim', id: nav.id }); }}
+        onEditarItem={function (it) { setNav({ t: 'qtd', id: nav.id, alimento: obterAlimento(it.alimentoId) || { id: it.alimentoId, nome: 'Alimento', kcal: 0 }, item: it }); }}
+        onDuplicar={function () { var novo = duplicarRefeicao(nav.id); setNav({ t: 'refeicao', id: novo }); }}
+        onExcluir={function () { excluirRefeicao(nav.id); bump(); setNav({ t: 'lista' }); }} />;
+    }
+    if (nav.t === 'addAlim') {
+      return <SeletorAlimento onVoltar={function () { setNav({ t: 'refeicao', id: nav.id }); }} onEscolher={function (a) { setNav({ t: 'qtd', id: nav.id, alimento: a }); }} />;
+    }
+    if (nav.t === 'qtd') {
+      return <SeletorQuantidade alimento={nav.alimento} item={nav.item}
+        onVoltar={function () { setNav(nav.item ? { t: 'refeicao', id: nav.id } : { t: 'addAlim', id: nav.id }); }}
+        onConfirmar={function (q) {
+          var r = obterRefeicao(nav.id); var itens = (r.itens || []).slice();
+          if (nav.item) { for (var i = 0; i < itens.length; i++) if (itens[i].id === nav.item.id) { itens[i] = Object.assign({}, itens[i], { gramas: q.gramas, medida: q.medida }); break; } }
+          else { itens.push({ id: 'i-' + Date.now(), alimentoId: nav.alimento.id, gramas: q.gramas, medida: q.medida }); }
+          editarRefeicao(nav.id, { itens: itens }); setNav({ t: 'refeicao', id: nav.id });
+        }} />;
+    }
+    return <ListaRefeicoes versao={versao} onSecao={props.onSecao} onNova={function () { setNav({ t: 'refeicao', id: criarRefeicao({}) }); }} onAbrir={function (id) { setNav({ t: 'refeicao', id: id }); }} />;
+  }
+
+  function TelaBiblioteca() {
+    var sst = useState(function () { return storeGet('bibliotecaSecao', 'alimentos'); });
+    var secao = sst[0], setSecao = sst[1];
+    useEffect(function () { storeSet('bibliotecaSecao', secao); }, [secao]);
+    if (secao === 'refeicoes') return <PainelRefeicoes onSecao={setSecao} />;
+    return <PainelAlimentos onSecao={setSecao} />;
   }
 
   /* ============================================================
@@ -655,7 +935,11 @@
     ATIVIDADE: ATIVIDADE, OBJETIVOS: OBJETIVOS, RITMOS: RITMOS, PISO_KCAL: PISO_KCAL,
     todosAlimentos: todosAlimentos, obterAlimento: obterAlimento, criarAlimento: criarAlimento,
     editarAlimento: editarAlimento, excluirAlimento: excluirAlimento, porcoesDe: porcoesDe, salvarPorcoes: salvarPorcoes,
-    categorias: categorias, storeGet: storeGet, storeSet: storeSet
+    categorias: categorias, filtrarAlimentos: filtrarAlimentos,
+    todasRefeicoes: todasRefeicoes, obterRefeicao: obterRefeicao, criarRefeicao: criarRefeicao,
+    editarRefeicao: editarRefeicao, excluirRefeicao: excluirRefeicao, duplicarRefeicao: duplicarRefeicao,
+    macrosItem: macrosItem, macrosRefeicao: macrosRefeicao, ETIQUETAS: ETIQUETAS,
+    storeGet: storeGet, storeSet: storeSet
   };
   if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }
   if (typeof document !== 'undefined' && document.getElementById('root')) {

@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 2 (esqueleto + Perfil + motor de cálculo + Biblioteca de alimentos).
-- **CACHE_VERSION atual:** `fuel-v2` (em `sw.js`).
+- **Lote concluído:** 3 (Perfil + motor + Biblioteca de alimentos + Refeições-modelo).
+- **CACHE_VERSION atual:** `fuel-v3` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -35,6 +35,10 @@ Prefixo `fuel:` em todas. Hoje:
   - `alimentosUsuario` — array de alimentos próprios: `{ id:'u-<ts>', nome, cat, kcal, prot, carbo, gord, criadoEm }` (valores por 100 g).
   - `alimentosOverride` — `{ '<id>': { campos editados…, oculto?:true } }`. Só para ids `taco-*`. Editar um item da TACO grava um override; "remover" grava `oculto:true` (reversível via backup).
   - `porcoes` — `{ '<alimentoId>': [ {id, rotulo, g} ] }`. Materializa só quando o usuário edita as porções daquele alimento; senão usa `FUEL_PORCOES` da semente.
+- **Refeições-modelo (lote 3):**
+  - `refeicoes` — array: `{ id:'r-<ts>', nome, etiqueta, itens:[…], criadoEm }`. `etiqueta` ∈ `''|cafe|lanche_manha|almoco|lanche|jantar|ceia`.
+    - Item: `{ id:'i-<ts>', alimentoId, gramas, medida }`. `gramas` é a verdade; `medida` é o rótulo amigável ("2× concha média" ou "150 g"). Macros derivados do alimento atual (sempre em dia).
+  - `bibliotecaSecao` — `'alimentos' | 'refeicoes'` (seção ativa da aba Biblioteca).
 
 Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm, dados:{...todas as chaves...} }`.
 
@@ -63,8 +67,14 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual** (reaproveitado no detalhe do alimento, "por 100 g").
 - `EditorManual` — sobrescreve metas à mão.
 - `CardBackup` — exportar/importar JSON.
-- **Biblioteca (lote 2):** `TelaBiblioteca` (orquestra navegação lista→detalhe→form por estado), `ListaAlimentos` (busca sem acento + filtro por categoria, render limitado a 80), `ItemAlimento`, `TelaDetalhe` (anel por 100 g + porções editáveis), `FormAlimento` (criar/editar, com conferência "kcal pelos macros"), `FormPorcao`.
-- Reutilizáveis: `Campo`, `Select`, `Segmented`, `LinhaMacro`, `Icone`, `Cabecalho`.
+- **Biblioteca (lote 2):** `TelaBiblioteca` (wrapper, alterna seção via `SeletorSecao`), `PainelAlimentos` (lista→detalhe→form), `ListaAlimentos`, `ItemAlimento`, `TelaDetalhe`, `FormAlimento`, `FormPorcao`.
+- **Refeições (lote 3):** `PainelRefeicoes` (lista→refeição→escolher alimento→quantidade), `ListaRefeicoes` (agrupada por etiqueta), `ItemRefeicaoCard`, `TelaRefeicao` (editor com auto-save; anel do total), `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas).
+- Reutilizáveis: `Campo`, `Select`, `Segmented`, `SeletorSecao`, `LinhaMacro`, `Icone`, `Cabecalho`.
+
+## Refeições-modelo (lote 3)
+- Refeição = nome + etiqueta (momento do dia) + itens. Etiquetas em `ETIQUETAS` (6, com ordem cronológica): café da manhã, lanche da manhã, almoço, lanche da tarde, jantar, ceia.
+- **Funções (em `window.FuelEngine`):** `todasRefeicoes()`, `obterRefeicao(id)`, `criarRefeicao(dados)`, `editarRefeicao(id, campos)`, `excluirRefeicao(id)`, `duplicarRefeicao(id)`, `macrosItem(item)`, `macrosRefeicao(ref)`, `filtrarAlimentos(busca, cat)`.
+- Item guarda `gramas` (fonte da verdade) + `medida` (rótulo). Macros recalculados sempre a partir de `obterAlimento`. Auto-save: refeição é persistida ao criar; se sair vazia (sem nome e sem itens), é descartada.
 
 ## Banco de alimentos (lote 2)
 - **Semente:** Tabela TACO (NEPA/UNICAMP), 597 alimentos, 15 categorias, só os 4 macros por 100 g. 15 buracos da fonte foram preenchidos (óleos = gordura pura; leites e poucos itens com valores de referência; sal/álcool determinados). 111 alimentos comuns já vêm com porções caseiras (concha, colher, fatia, unidade, copo…).
@@ -83,7 +93,6 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
   aguardar o workflow concluir → reabrir o app (às vezes 2x) para o cache novo assumir.
 
 ## Próximos lotes (planejados)
-3. Refeições-modelo (biblioteca reutilizável combinando alimentos + porções).
-4. Semana genérica + Dia com o anel de calorias; cópia editável + "salvar no modelo".
+4. Semana genérica (segunda–domingo que repete) + Dia com o anel de calorias e slots por momento; refeições-modelo entram nos dias; cópia editável por dia + "salvar no modelo".
 5. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional.
