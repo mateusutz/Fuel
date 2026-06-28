@@ -172,7 +172,7 @@
 
   /* ============================================================
      CAMADA DE DADOS — REFEIÇÕES-MODELO (lote 3)
-     Uma refeição = nome + etiqueta (momento do dia) + itens.
+     Uma refeição = nome + etiquetas (momentos do dia) + itens.
      Item = { id, alimentoId, gramas, medida }. gramas é a verdade;
      os macros são derivados do alimento atual (ficam sempre em dia).
      ============================================================ */
@@ -187,12 +187,21 @@
   function etiquetaRotulo(id) { for (var i = 0; i < ETIQUETAS.length; i++) if (ETIQUETAS[i].id === id) return ETIQUETAS[i].rotulo; return ''; }
   function etiquetaOrdem(id) { for (var i = 0; i < ETIQUETAS.length; i++) if (ETIQUETAS[i].id === id) return ETIQUETAS[i].ordem; return 99; }
 
-  function todasRefeicoes() { return storeGet('refeicoes', []); }
+  function todasRefeicoes() {
+    var rs = storeGet('refeicoes', []);
+    return rs.map(function (r) {
+      if (Array.isArray(r.etiquetas)) return r;
+      var n = Object.assign({}, r, { etiquetas: r.etiqueta ? [r.etiqueta] : [] }); delete n.etiqueta; return n; // migração etiqueta→etiquetas
+    });
+  }
   function obterRefeicao(id) { var r = todasRefeicoes().filter(function (x) { return x.id === id; })[0]; return r || null; }
   function criarRefeicao(dados) {
+    dados = dados || {};
     var rs = todasRefeicoes(); var id = uid('r-');
-    rs.push(Object.assign({ id: id, nome: '', etiqueta: '', itens: [], criadoEm: Date.now() }, dados));
-    storeSet('refeicoes', rs); return id;
+    var etiquetas = Array.isArray(dados.etiquetas) ? dados.etiquetas : (dados.etiqueta ? [dados.etiqueta] : []);
+    var base = Object.assign({ id: id, nome: '', itens: [], criadoEm: Date.now() }, dados, { etiquetas: etiquetas });
+    delete base.etiqueta;
+    rs.push(base); storeSet('refeicoes', rs); return id;
   }
   function editarRefeicao(id, campos) {
     var rs = todasRefeicoes(); for (var i = 0; i < rs.length; i++) if (rs[i].id === id) { rs[i] = Object.assign({}, rs[i], campos); break; }
@@ -243,12 +252,13 @@
     var m = obterRefeicao(modeloId); if (!m) return null;
     var c = JSON.parse(JSON.stringify(m));
     c.id = uid('r-'); c.criadoEm = Date.now(); c.efemera = true; c.modeloId = modeloId;
-    if (etiqueta) c.etiqueta = etiqueta;
+    c.etiquetas = etiqueta ? [etiqueta] : (Array.isArray(m.etiquetas) ? m.etiquetas.slice() : []);
+    delete c.etiqueta;
     c.itens = (c.itens || []).map(function (it, i) { return Object.assign({}, it, { id: uid('i-') + '-' + i }); });
     var rs = todasRefeicoes(); rs.push(c); storeSet('refeicoes', rs); return c.id;
   }
   function adicionarRefeicaoAoDia(diaId, etiqueta, modeloId) {
-    var novo = modeloId ? duplicarComoCopia(modeloId, etiqueta) : criarRefeicao({ etiqueta: etiqueta || '', efemera: true });
+    var novo = modeloId ? duplicarComoCopia(modeloId, etiqueta) : criarRefeicao({ etiquetas: etiqueta ? [etiqueta] : [], efemera: true });
     var ids = idsDoDia(diaId).slice(); ids.push(novo); setIdsDoDia(diaId, ids); return novo;
   }
   function removerRefeicaoDoDia(diaId, refId) {
@@ -272,9 +282,9 @@
   }
   function salvarCopiaNoModelo(copiaId) {
     var c = obterRefeicao(copiaId); if (!c) return null;
-    var conteudo = { nome: c.nome, etiqueta: c.etiqueta, itens: JSON.parse(JSON.stringify(c.itens || [])) };
+    var conteudo = { nome: c.nome, etiquetas: (c.etiquetas || []).slice(), itens: JSON.parse(JSON.stringify(c.itens || [])) };
     if (c.modeloId && obterRefeicao(c.modeloId)) { editarRefeicao(c.modeloId, conteudo); return c.modeloId; }
-    var novoId = criarRefeicao({ nome: c.nome || 'Nova refeição', etiqueta: c.etiqueta, itens: conteudo.itens });
+    var novoId = criarRefeicao({ nome: c.nome || 'Nova refeição', etiquetas: conteudo.etiquetas, itens: conteudo.itens });
     editarRefeicao(copiaId, { modeloId: novoId }); return novoId;
   }
   function macrosDoDia(diaId) {
@@ -845,7 +855,7 @@
     var _ = props.versao;
     var refs = refeicoesModelo();
     var grupos = {};
-    refs.forEach(function (r) { var k = r.etiqueta || ''; (grupos[k] = grupos[k] || []).push(r); });
+    refs.forEach(function (r) { var es = (r.etiquetas && r.etiquetas.length) ? r.etiquetas : ['']; es.forEach(function (k) { (grupos[k] = grupos[k] || []).push(r); }); });
     var chaves = Object.keys(grupos).sort(function (a, b) { return (a ? etiquetaOrdem(a) : 99) - (b ? etiquetaOrdem(b) : 99); });
     return (
       <div style={S.screen}>
@@ -955,7 +965,17 @@
         <Cabecalho titulo={props.titulo || 'Refeição'} onVoltar={props.onVoltar} />
         <div style={S.card}>
           <Campo label="Nome" inputMode="text" placeholder="ex.: Café da manhã forte" value={ref.nome} onChange={function (x) { setCampo('nome', x); }} />
-          <Select label="Momento do dia" value={ref.etiqueta || ''} onChange={function (x) { setCampo('etiqueta', x); }} options={[{ value: '', label: 'Sem etiqueta' }].concat(ETIQUETAS.map(function (e) { return { value: e.id, label: e.rotulo }; }))} />
+          <div style={S.field}>
+            <label style={S.label}>Momentos do dia</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {ETIQUETAS.map(function (e) {
+                var on = (ref.etiquetas || []).indexOf(e.id) >= 0;
+                return <button key={e.id} onClick={function () { var arr = (ref.etiquetas || []).slice(); var ix = arr.indexOf(e.id); if (ix >= 0) arr.splice(ix, 1); else arr.push(e.id); setCampo('etiquetas', arr); }}
+                  style={{ padding: '7px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? '#EAF5EE' : '#fff', color: on ? C.brandDark : C.ink2 }}>{e.rotulo}</button>;
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: C.ink2, marginTop: 6 }}>Em quais momentos esta refeição costuma entrar. Pode marcar mais de um.</div>
+          </div>
         </div>
 
         <div style={S.card}>
@@ -1119,8 +1139,8 @@
 
   function TelaEscolherModelo(props) {
     var modelos = refeicoesModelo();
-    var doMomento = modelos.filter(function (r) { return r.etiqueta === props.etiqueta; });
-    var outros = modelos.filter(function (r) { return r.etiqueta !== props.etiqueta; });
+    var doMomento = modelos.filter(function (r) { return (r.etiquetas || []).indexOf(props.etiqueta) >= 0; });
+    var outros = modelos.filter(function (r) { return (r.etiquetas || []).indexOf(props.etiqueta) < 0; });
     function card(r) { return <ItemRefeicaoCard key={r.id} refeicao={r} onClick={function () { props.onModelo(r.id); }} />; }
     return (
       <div style={S.screen}>
@@ -1137,12 +1157,13 @@
     var _ = props.versao;
     var dia = DIAS.filter(function (d) { return d.id === props.diaId; })[0] || { rotulo: 'Dia' };
     var metas = metasAtuais(), m = macrosDoDia(props.diaId), refs = refeicoesDoDia(props.diaId);
-    var usados = {}; refs.forEach(function (r) { if (r.etiqueta) usados[r.etiqueta] = true; });
-    var semEtiqueta = refs.filter(function (r) { return !r.etiqueta; });
+    function momentoDe(r) { return (r.etiquetas && r.etiquetas[0]) || ''; }
+    var usados = {}; refs.forEach(function (r) { var mo = momentoDe(r); if (mo) usados[mo] = true; });
+    var semEtiqueta = refs.filter(function (r) { return !momentoDe(r); });
     var momentos = ETIQUETAS.filter(function (e) { return MOMENTOS_PRINCIPAIS.indexOf(e.id) >= 0 || usados[e.id]; });
     var faltantes = ETIQUETAS.filter(function (e) { return momentos.indexOf(e) < 0; });
     var ast = useState(false); var addOutro = ast[0], setAddOutro = ast[1];
-    function refsDe(etq) { return refs.filter(function (r) { return r.etiqueta === etq; }); }
+    function refsDe(etq) { return refs.filter(function (r) { return momentoDe(r) === etq; }); }
     return (
       <div style={S.screen}>
         <Cabecalho titulo={dia.rotulo} onVoltar={props.onVoltar} />

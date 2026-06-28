@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 7 (Perfil com data de nascimento; + Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
-- **CACHE_VERSION atual:** `fuel-v7` (em `sw.js`).
+- **Lote concluído:** 8 (Momento do dia com múltipla escolha; + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
+- **CACHE_VERSION atual:** `fuel-v8` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -36,7 +36,7 @@ Prefixo `fuel:` em todas. Hoje:
   - `alimentosOverride` — `{ '<id>': { campos editados…, oculto?:true } }`. Só para ids `taco-*`. Editar um item da TACO grava um override; "remover" grava `oculto:true` (reversível via backup).
   - `porcoes` — `{ '<alimentoId>': [ {id, rotulo, g} ] }`. Materializa só quando o usuário edita as porções daquele alimento; senão usa `FUEL_PORCOES` da semente.
 - **Refeições-modelo (lote 3):**
-  - `refeicoes` — array: `{ id:'r-<uid>', nome, etiqueta, itens:[…], criadoEm }`. `etiqueta` ∈ `''|cafe|lanche_manha|almoco|lanche|jantar|ceia`.
+  - `refeicoes` — array: `{ id:'r-<uid>', nome, etiquetas:[…], itens:[…], criadoEm }`. `etiquetas` é um array de momentos (lote 8: múltipla escolha); cada momento ∈ `cafe|lanche_manha|almoco|lanche|jantar|ceia`. Migração silenciosa na leitura (`todasRefeicoes`): `etiqueta` (string, legado) → `etiquetas` (array). Na biblioteca a refeição aparece em todos os seus momentos; no dia, a cópia ocupa só `etiquetas[0]` (o momento do slot onde foi adicionada).
     - Item: `{ id:'i-<uid>', alimentoId, gramas, medida }`. `gramas` é a verdade; `medida` é o rótulo amigável ("2× concha média" ou "150 g"). Macros derivados do alimento atual (sempre em dia).
     - **Cópias de dia (lote 4):** uma refeição em `refeicoes` pode ter `efemera:true` e `modeloId`. É a cópia que vive dentro de um dia — não aparece na biblioteca (filtrada por `refeicoesModelo()`) e é coletada como lixo se nenhum dia a referencia.
   - `bibliotecaSecao` — `'alimentos' | 'refeicoes'` (seção ativa da aba Biblioteca).
@@ -105,7 +105,6 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Lista de compras (lote 6):** `listaDeCompras(diasSel?)` agrega as gramas por alimento em todos os dias (ou nos `diasSel`) e agrupa por categoria, na ordem de `FUEL_TACO_CATS`. `qtdCompra(alimento, gramas)` escolhe a medida natural: unidades/fatias (porção contável com "unidade"/"fatia"), litros/ml (líquidos: categoria Bebidas, porção em copo/ml, ou nome de líquido comum), senão kg/g; devolve `{ principal, sub }` (sub = peso exato em g, só para itens contáveis). `listaComprasTexto(diasSel?)` gera o texto para copiar. `fmtMil(n)` formata com separador de milhar pt-BR. UI: botão "Lista de compras" no topo da `TelaSemana` → `TelaCompras` (agrupada por categoria, itens marcáveis como "pego", botão "Copiar lista" via `navigator.clipboard`). Marcação é só de sessão (não persiste).
 
 ## Próximos lotes (planejados)
-8. Momento do dia com múltipla escolha (refeição-modelo serve a vários momentos).
 9. Cadastrar alimento direto da busca ao montar refeição.
 10. Aba "Hoje" (tela de entrada com o dia da semana atual).
 11. Backup separado por tipo (alimentos+receitas vs. plano).
