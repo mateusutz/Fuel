@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 9 (Cadastrar alimento direto da busca; + Momento do dia com múltipla escolha, + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
-- **CACHE_VERSION atual:** `fuel-v9` (em `sw.js`).
+- **Lote concluído:** 10 (Aba “Hoje”; + Cadastrar alimento da busca, + Momento do dia com múltipla escolha, + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
+- **CACHE_VERSION atual:** `fuel-v10` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -65,14 +65,15 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
      proteína (até 1,6 g/kg) se proteína+gordura excederem a meta.
 
 ## Componentes principais (`app.js`)
-- `App` — navegação inferior (3 abas) + roteamento simples por estado; limpa cópias órfãs ao iniciar.
+- `App` — navegação inferior (4 abas: Hoje, Semana, Biblioteca, Perfil; padrão **Hoje**) + roteamento simples por estado; limpa cópias órfãs ao iniciar.
 - `TelaPerfil` — formulário, cálculo reativo, edição manual, backup.
 - `CardMetas` + `AnelMacros` — exibição da meta; **anel de macros = assinatura visual** (reaproveitado no detalhe do alimento, no total da refeição e no resumo do dia).
 - `EditorManual` — sobrescreve metas à mão.
 - `CardBackup` — exportar/importar JSON.
 - **Biblioteca (lote 2):** `TelaBiblioteca` (wrapper, alterna seção via `SeletorSecao`), `PainelAlimentos` (lista→detalhe→form), `ListaAlimentos`, `ItemAlimento`, `TelaDetalhe`, `FormAlimento`, `FormPorcao`.
 - **Refeições (lote 3 + 4):** `PainelRefeicoes` (biblioteca), `ListaRefeicoes` (só modelos, agrupada por etiqueta), `ItemRefeicaoCard`, `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas). O `SeletorAlimento` permite **cadastrar um alimento novo na hora** (lote 9): abre o `FormAlimento` com o nome já preenchido pela busca e, ao salvar, o novo alimento entra direto no fluxo de quantidade. O editor foi refatorado: `TelaRefeicao` agora recebe `acoes` (lista de botões `{label,onClick,danger,confirmar}`) e `titulo`; `RefeicaoEditor` encapsula a navegação editar→escolher alimento→quantidade e opera por id — **reutilizado pela biblioteca e pelo dia**.
-- **Semana e Dia (lote 4):** `PainelSemana` (lista↔dia), `TelaSemana` (7 cards com kcal e barra vs. meta), `PainelDia` (dia↔escolher modelo↔editar cópia), `TelaDia` (resumo + momentos com "+ adicionar"), `CardResumoDia` (anel do dia + barras vs. meta + texto No alvo/Faltam/acima), `TelaEscolherModelo` (modelos do momento + montar na hora), `LinhaMacroMeta` (barra consumido/meta).
+- **Semana e Dia (lote 4):** `PainelSemana` (lista↔dia↔compras), `TelaSemana` (7 cards com kcal e barra vs. meta), `PainelDia` (dia↔escolher modelo↔editar cópia↔copiar), `TelaDia` (resumo + momentos com "+ adicionar"; aceita `titulo`/`subtitulo` e `onVoltar` opcional), `CardResumoDia` (anel do dia + barras vs. meta + texto No alvo/Faltam/acima), `TelaEscolherModelo` (modelos do momento + montar na hora), `LinhaMacroMeta` (barra consumido/meta).
+- **Aba Hoje (lote 10):** `PainelHoje` reutiliza o `PainelDia` apontando para o dia da semana atual (sem botão voltar, título "Hoje" + data por extenso). `diaDeHojeId()` mapeia `new Date().getDay()` → id de `DIAS`; `dataHojeRotulo()` monta "Domingo, 28 de junho". É a aba de entrada (padrão), pensada para virar a landing pós-login.
 - Reutilizáveis: `Campo`, `Select`, `Segmented`, `SeletorSecao`, `LinhaMacro`, `Icone`, `Cabecalho`.
 
 ## Refeições-modelo (lote 3)
@@ -105,6 +106,5 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Lista de compras (lote 6):** `listaDeCompras(diasSel?)` agrega as gramas por alimento em todos os dias (ou nos `diasSel`) e agrupa por categoria, na ordem de `FUEL_TACO_CATS`. `qtdCompra(alimento, gramas)` escolhe a medida natural: unidades/fatias (porção contável com "unidade"/"fatia"), litros/ml (líquidos: categoria Bebidas, porção em copo/ml, ou nome de líquido comum), senão kg/g; devolve `{ principal, sub }` (sub = peso exato em g, só para itens contáveis). `listaComprasTexto(diasSel?)` gera o texto para copiar. `fmtMil(n)` formata com separador de milhar pt-BR. UI: botão "Lista de compras" no topo da `TelaSemana` → `TelaCompras` (agrupada por categoria, itens marcáveis como "pego", botão "Copiar lista" via `navigator.clipboard`). Marcação é só de sessão (não persiste).
 
 ## Próximos lotes (planejados)
-10. Aba "Hoje" (tela de entrada com o dia da semana atual).
 11. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional, registro do consumo real.

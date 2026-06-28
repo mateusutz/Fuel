@@ -242,6 +242,9 @@
     { id: 'dom', rotulo: 'Domingo', curto: 'Dom' }
   ];
   var MOMENTOS_PRINCIPAIS = ['cafe', 'almoco', 'lanche', 'jantar'];
+  var MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  function diaDeHojeId() { return ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][new Date().getDay()]; }
+  function dataHojeRotulo() { var n = new Date(), d = DIAS.filter(function (x) { return x.id === diaDeHojeId(); })[0]; return (d ? d.rotulo : '') + ', ' + n.getDate() + ' de ' + MESES[n.getMonth()]; }
 
   function semanaDados() { var s = storeGet('semana', null); if (!s || typeof s !== 'object') s = { dias: {} }; if (!s.dias) s.dias = {}; return s; }
   function idsDoDia(diaId) { return semanaDados().dias[diaId] || []; }
@@ -487,6 +490,7 @@
   function Icone(props) {
     var paths = {
       semana: <g><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></g>,
+      hoje: <g><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></g>,
       biblioteca: <g><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></g>,
       perfil: <g><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></g>,
       voltar: <polyline points="15 18 9 12 15 6" />,
@@ -1176,7 +1180,8 @@
     function refsDe(etq) { return refs.filter(function (r) { return momentoDe(r) === etq; }); }
     return (
       <div style={S.screen}>
-        <Cabecalho titulo={dia.rotulo} onVoltar={props.onVoltar} />
+        <Cabecalho titulo={props.titulo || dia.rotulo} onVoltar={props.onVoltar} />
+        {props.subtitulo ? <p style={Object.assign({}, S.sub, { marginTop: -8 })}>{props.subtitulo}</p> : null}
         <CardResumoDia macros={m} metas={metas} />
         {momentos.map(function (e) {
           var lista = refsDe(e.id);
@@ -1265,9 +1270,15 @@
         onConfirmar={function (destinos) { copiarDiaPara(props.diaId, destinos); bump(); setNav({ t: 'dia' }); }} />;
     }
     return <TelaDia diaId={props.diaId} versao={versao} onVoltar={props.onVoltar}
+      titulo={props.titulo} subtitulo={props.subtitulo}
       onAdicionar={function (etq) { setNav({ t: 'escolher', etiqueta: etq }); }}
       onEditar={function (refId) { setNav({ t: 'editar', refId: refId }); }}
       onCopiar={function () { setNav({ t: 'copiar' }); }} />;
+  }
+
+  function PainelHoje() {
+    var hoje = diaDeHojeId();
+    return <PainelDia diaId={hoje} titulo="Hoje" subtitulo={dataHojeRotulo()} />;
   }
 
   function TelaCompras(props) {
@@ -1331,16 +1342,17 @@
   /* ============================================================
      APP + navegação inferior
      ============================================================ */
-  var ABAS = [{ id: 'semana', rotulo: 'Semana' }, { id: 'biblioteca', rotulo: 'Biblioteca' }, { id: 'perfil', rotulo: 'Perfil' }];
+  var ABAS = [{ id: 'hoje', rotulo: 'Hoje' }, { id: 'semana', rotulo: 'Semana' }, { id: 'biblioteca', rotulo: 'Biblioteca' }, { id: 'perfil', rotulo: 'Perfil' }];
   function App() {
-    var ast = useState(function () { return storeGet('abaAtiva', 'perfil'); });
+    var ast = useState(function () { return storeGet('abaAtiva', 'hoje'); });
     var aba = ast[0], setAba = ast[1];
     useEffect(function () { storeSet('abaAtiva', aba); }, [aba]);
     useEffect(function () { limparCopiasOrfas(); }, []);
     var conteudo;
     if (aba === 'perfil') conteudo = <TelaPerfil />;
     else if (aba === 'biblioteca') conteudo = <TelaBiblioteca />;
-    else conteudo = <PainelSemana />;
+    else if (aba === 'semana') conteudo = <PainelSemana />;
+    else conteudo = <PainelHoje />;
     return (
       <div style={{ minHeight: '100dvh', background: C.bg }}>
         {conteudo}
@@ -1371,7 +1383,7 @@
     removerRefeicaoDoDia: removerRefeicaoDoDia, salvarCopiaNoModelo: salvarCopiaNoModelo, macrosDoDia: macrosDoDia,
     copiarDiaPara: copiarDiaPara, clonarRefeicaoComoCopia: clonarRefeicaoComoCopia,
     listaDeCompras: listaDeCompras, listaComprasTexto: listaComprasTexto, qtdCompra: qtdCompra,
-    limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais, calcularIdade: calcularIdade,
+    limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais, calcularIdade: calcularIdade, diaDeHojeId: diaDeHojeId,
     storeGet: storeGet, storeSet: storeSet
   };
   if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }
