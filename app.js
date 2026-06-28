@@ -77,6 +77,16 @@
   var PROT_MIN_GKG = 1.6, FAT_MIN_GKG = 0.6;
 
   function calcularBMR(p) { var b = 10 * p.peso + 6.25 * p.altura - 5 * p.idade; return p.sexo === 'F' ? b - 161 : b + 5; }
+  function calcularIdade(iso, ref) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return NaN;
+    var by = +m[1], bm = +m[2], bd = +m[3], hy, hm, hd;
+    var r = ref ? String(ref).match(/^(\d{4})-(\d{2})-(\d{2})/) : null;
+    if (r) { hy = +r[1]; hm = +r[2]; hd = +r[3]; } else { var n = new Date(); hy = n.getFullYear(); hm = n.getMonth() + 1; hd = n.getDate(); }
+    var idade = hy - by;
+    if (hm < bm || (hm === bm && hd < bd)) idade--;
+    return idade;
+  }
+  function hojeISO() { var n = new Date(), p = function (x) { return String(x).padStart(2, '0'); }; return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate()); }
   function fatorAtividade(c) { return (ATIVIDADE[c] || ATIVIDADE.moderado).fator; }
   function calcularTDEE(p) { return calcularBMR(p) * fatorAtividade(p.atividade); }
   function massaMagra(p) {
@@ -339,12 +349,22 @@
      PERFIL (lote 1)
      ============================================================ */
   var SCHEMA = 1;
-  var PERFIL_PADRAO = { _v: SCHEMA, sexo: 'M', idade: '', altura: '', peso: '', gorduraPct: '', atividade: 'moderado', objetivo: 'manter', ritmo: 'moderado' };
-  function migrarPerfil(p) { if (!p || typeof p !== 'object') return Object.assign({}, PERFIL_PADRAO); var o = Object.assign({}, PERFIL_PADRAO, p); o._v = SCHEMA; return o; }
+  var PERFIL_PADRAO = { _v: SCHEMA, sexo: 'M', nascimento: '', idade: '', altura: '', peso: '', gorduraPct: '', atividade: 'moderado', objetivo: 'manter', ritmo: 'moderado' };
+  function migrarPerfil(p) {
+    if (!p || typeof p !== 'object') return Object.assign({}, PERFIL_PADRAO);
+    var o = Object.assign({}, PERFIL_PADRAO, p); o._v = SCHEMA;
+    // migração: quem só tinha idade ganha uma data de nascimento estimada (1º de janeiro do ano), ajustável depois
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(o.nascimento || '') && parseNum(o.idade) > 0) {
+      o.nascimento = (new Date().getFullYear() - Math.round(parseNum(o.idade))) + '-01-01';
+    }
+    return o;
+  }
   function carregarPerfil() { return migrarPerfil(storeGet('perfil', null)); }
   function normalizarPerfil(raw) {
     var g = parseNum(raw.gorduraPct);
-    return { sexo: raw.sexo === 'F' ? 'F' : 'M', idade: parseNum(raw.idade), altura: parseNum(raw.altura), peso: parseNum(raw.peso), gorduraPct: isNaN(g) ? null : g, atividade: raw.atividade, objetivo: raw.objetivo, ritmo: raw.ritmo };
+    var idadeNasc = raw.nascimento ? calcularIdade(raw.nascimento) : NaN;
+    var idade = !isNaN(idadeNasc) ? idadeNasc : parseNum(raw.idade);
+    return { sexo: raw.sexo === 'F' ? 'F' : 'M', nascimento: raw.nascimento || '', idade: idade, altura: parseNum(raw.altura), peso: parseNum(raw.peso), gorduraPct: isNaN(g) ? null : g, atividade: raw.atividade, objetivo: raw.objetivo, ritmo: raw.ritmo };
   }
   function perfilValido(n) { return n.idade > 0 && n.idade < 120 && n.altura > 0 && n.altura < 260 && n.peso > 0 && n.peso < 400; }
 
@@ -565,13 +585,18 @@
         <div style={S.card}>
           <div style={S.cardTitle}>Seus dados</div>
           <Segmented label="Sexo" value={perfil.sexo} onChange={function (v) { set('sexo', v); }} options={[{ value: 'M', label: 'Masculino' }, { value: 'F', label: 'Feminino' }]} />
-          <div style={S.row2}>
-            <div><label style={S.label}>Idade</label><input style={S.input} type="text" inputMode="numeric" placeholder="anos" value={perfil.idade} onChange={function (e) { set('idade', e.target.value); }} /></div>
-            <div><label style={S.label}>Altura</label><input style={S.input} type="text" inputMode="decimal" placeholder="cm" value={perfil.altura} onChange={function (e) { set('altura', e.target.value); }} /></div>
+          <div style={S.field}>
+            <label style={S.label}>Data de nascimento</label>
+            <input style={S.input} type="date" max={hojeISO()} min="1900-01-01" value={perfil.nascimento || ''} onChange={function (e) { set('nascimento', e.target.value); }} />
+            {(function () { var id = calcularIdade(perfil.nascimento); return !isNaN(id) && id >= 0 && id < 120 ? <div style={{ fontSize: 12, color: C.ink2, marginTop: 5 }}>{id} anos</div> : null; })()}
           </div>
           <div style={S.row2}>
+            <div><label style={S.label}>Altura</label><input style={S.input} type="text" inputMode="decimal" placeholder="cm" value={perfil.altura} onChange={function (e) { set('altura', e.target.value); }} /></div>
             <div><label style={S.label}>Peso</label><input style={S.input} type="text" inputMode="decimal" placeholder="kg" value={perfil.peso} onChange={function (e) { set('peso', e.target.value); }} /></div>
-            <div><label style={S.label}>Gordura <span style={{ color: C.ink2, fontWeight: 400 }}>· opcional</span></label><input style={S.input} type="text" inputMode="decimal" placeholder="% do peso" value={perfil.gorduraPct} onChange={function (e) { set('gorduraPct', e.target.value); }} /></div>
+          </div>
+          <div style={S.field}>
+            <label style={S.label}>Gordura <span style={{ color: C.ink2, fontWeight: 400 }}>· opcional</span></label>
+            <input style={S.input} type="text" inputMode="decimal" placeholder="% do peso" value={perfil.gorduraPct} onChange={function (e) { set('gorduraPct', e.target.value); }} />
           </div>
           <div style={{ fontSize: 12, color: C.ink2 }}>Informar a % de gordura deixa o cálculo de proteína mais preciso (usa a massa magra).</div>
         </div>
@@ -1315,7 +1340,7 @@
     removerRefeicaoDoDia: removerRefeicaoDoDia, salvarCopiaNoModelo: salvarCopiaNoModelo, macrosDoDia: macrosDoDia,
     copiarDiaPara: copiarDiaPara, clonarRefeicaoComoCopia: clonarRefeicaoComoCopia,
     listaDeCompras: listaDeCompras, listaComprasTexto: listaComprasTexto, qtdCompra: qtdCompra,
-    limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais,
+    limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais, calcularIdade: calcularIdade,
     storeGet: storeGet, storeSet: storeSet
   };
   if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }

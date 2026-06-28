@@ -1,7 +1,7 @@
 /* Fuel — service worker
    IMPORTANTE: incremente CACHE_VERSION a cada deploy para forçar a atualização
    do app no dispositivo. Sem isso, o aparelho continua servindo a versão antiga. */
-const CACHE_VERSION = 'fuel-v6';
+const CACHE_VERSION = 'fuel-v7';
 
 /* App shell (mesma origem). addAll é atômico: se um falhar, o install falha. */
 const SHELL = [

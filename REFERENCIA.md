@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 6 (Perfil + motor + Biblioteca + Refeições-modelo + Semana e Dia + Copiar dia + Lista de compras).
-- **CACHE_VERSION atual:** `fuel-v6` (em `sw.js`).
+- **Lote concluído:** 7 (Perfil com data de nascimento; + Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
+- **CACHE_VERSION atual:** `fuel-v7` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -26,7 +26,7 @@ dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso
 ## Modelo de dados (chaves de storage)
 Prefixo `fuel:` em todas. Hoje:
 - `perfil` — objeto cru do formulário (strings dos inputs):
-  `{ _v, sexo:'M'|'F', idade, altura, peso, gorduraPct, atividade, objetivo, ritmo }`
+  `{ _v, sexo:'M'|'F', nascimento:'YYYY-MM-DD', idade(legado), altura, peso, gorduraPct, atividade, objetivo, ritmo }` — a idade usada no cálculo é derivada de `nascimento` (via `calcularIdade`); `idade` é só legado. Migração: quem só tinha `idade` recebe um `nascimento` estimado (1º de janeiro do ano).
   - `_v` = versão do schema (atual: 1). Migração silenciosa em `migrarPerfil()`.
   - Campos numéricos guardados como string; convertidos por `normalizarPerfil()`.
 - `metasManuais` — `null` ou objeto de metas sobrescritas à mão (`manual: true`).
@@ -47,7 +47,7 @@ Prefixo `fuel:` em todas. Hoje:
 Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm, dados:{...todas as chaves...} }`.
 
 ## Motor de cálculo (em `app.js`, exposto em `window.FuelEngine`)
-1. **BMR** — Mifflin-St Jeor: `10·peso + 6,25·altura − 5·idade (+5 H / −161 M)`.
+1. **BMR** — Mifflin-St Jeor: `10·peso + 6,25·altura − 5·idade (+5 H / −161 M)` (idade derivada da data de nascimento).
 2. **TDEE** — `BMR × fator de atividade`:
    sedentário 1,2 · leve 1,375 · moderado 1,55 · intenso 1,725 · muito 1,9.
 3. **Meta calórica por objetivo:**
@@ -105,5 +105,8 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Lista de compras (lote 6):** `listaDeCompras(diasSel?)` agrega as gramas por alimento em todos os dias (ou nos `diasSel`) e agrupa por categoria, na ordem de `FUEL_TACO_CATS`. `qtdCompra(alimento, gramas)` escolhe a medida natural: unidades/fatias (porção contável com "unidade"/"fatia"), litros/ml (líquidos: categoria Bebidas, porção em copo/ml, ou nome de líquido comum), senão kg/g; devolve `{ principal, sub }` (sub = peso exato em g, só para itens contáveis). `listaComprasTexto(diasSel?)` gera o texto para copiar. `fmtMil(n)` formata com separador de milhar pt-BR. UI: botão "Lista de compras" no topo da `TelaSemana` → `TelaCompras` (agrupada por categoria, itens marcáveis como "pego", botão "Copiar lista" via `navigator.clipboard`). Marcação é só de sessão (não persiste).
 
 ## Próximos lotes (planejados)
-7. Backup separado por tipo (alimentos+receitas vs. plano).
+8. Momento do dia com múltipla escolha (refeição-modelo serve a vários momentos).
+9. Cadastrar alimento direto da busca ao montar refeição.
+10. Aba "Hoje" (tela de entrada com o dia da semana atual).
+11. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional, registro do consumo real.
