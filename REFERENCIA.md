@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 8 (Momento do dia com múltipla escolha; + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
-- **CACHE_VERSION atual:** `fuel-v8` (em `sw.js`).
+- **Lote concluído:** 9 (Cadastrar alimento direto da busca; + Momento do dia com múltipla escolha, + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
+- **CACHE_VERSION atual:** `fuel-v9` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -71,7 +71,7 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - `EditorManual` — sobrescreve metas à mão.
 - `CardBackup` — exportar/importar JSON.
 - **Biblioteca (lote 2):** `TelaBiblioteca` (wrapper, alterna seção via `SeletorSecao`), `PainelAlimentos` (lista→detalhe→form), `ListaAlimentos`, `ItemAlimento`, `TelaDetalhe`, `FormAlimento`, `FormPorcao`.
-- **Refeições (lote 3 + 4):** `PainelRefeicoes` (biblioteca), `ListaRefeicoes` (só modelos, agrupada por etiqueta), `ItemRefeicaoCard`, `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas). O editor foi refatorado: `TelaRefeicao` agora recebe `acoes` (lista de botões `{label,onClick,danger,confirmar}`) e `titulo`; `RefeicaoEditor` encapsula a navegação editar→escolher alimento→quantidade e opera por id — **reutilizado pela biblioteca e pelo dia**.
+- **Refeições (lote 3 + 4):** `PainelRefeicoes` (biblioteca), `ListaRefeicoes` (só modelos, agrupada por etiqueta), `ItemRefeicaoCard`, `SeletorAlimento`, `SeletorQuantidade` (porção × quantidade ou gramas). O `SeletorAlimento` permite **cadastrar um alimento novo na hora** (lote 9): abre o `FormAlimento` com o nome já preenchido pela busca e, ao salvar, o novo alimento entra direto no fluxo de quantidade. O editor foi refatorado: `TelaRefeicao` agora recebe `acoes` (lista de botões `{label,onClick,danger,confirmar}`) e `titulo`; `RefeicaoEditor` encapsula a navegação editar→escolher alimento→quantidade e opera por id — **reutilizado pela biblioteca e pelo dia**.
 - **Semana e Dia (lote 4):** `PainelSemana` (lista↔dia), `TelaSemana` (7 cards com kcal e barra vs. meta), `PainelDia` (dia↔escolher modelo↔editar cópia), `TelaDia` (resumo + momentos com "+ adicionar"), `CardResumoDia` (anel do dia + barras vs. meta + texto No alvo/Faltam/acima), `TelaEscolherModelo` (modelos do momento + montar na hora), `LinhaMacroMeta` (barra consumido/meta).
 - Reutilizáveis: `Campo`, `Select`, `Segmented`, `SeletorSecao`, `LinhaMacro`, `Icone`, `Cabecalho`.
 
@@ -105,7 +105,6 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Lista de compras (lote 6):** `listaDeCompras(diasSel?)` agrega as gramas por alimento em todos os dias (ou nos `diasSel`) e agrupa por categoria, na ordem de `FUEL_TACO_CATS`. `qtdCompra(alimento, gramas)` escolhe a medida natural: unidades/fatias (porção contável com "unidade"/"fatia"), litros/ml (líquidos: categoria Bebidas, porção em copo/ml, ou nome de líquido comum), senão kg/g; devolve `{ principal, sub }` (sub = peso exato em g, só para itens contáveis). `listaComprasTexto(diasSel?)` gera o texto para copiar. `fmtMil(n)` formata com separador de milhar pt-BR. UI: botão "Lista de compras" no topo da `TelaSemana` → `TelaCompras` (agrupada por categoria, itens marcáveis como "pego", botão "Copiar lista" via `navigator.clipboard`). Marcação é só de sessão (não persiste).
 
 ## Próximos lotes (planejados)
-9. Cadastrar alimento direto da busca ao montar refeição.
 10. Aba "Hoje" (tela de entrada com o dia da semana atual).
 11. Backup separado por tipo (alimentos+receitas vs. plano).
 Futuro: nuvem (Firebase, offline-first), micronutrientes, USDA/API externa de tabela nutricional, registro do consumo real.

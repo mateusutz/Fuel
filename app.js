@@ -778,7 +778,7 @@
   function FormAlimento(props) {
     var orig = props.id ? obterAlimento(props.id) : null;
     var st = useState({
-      nome: orig ? orig.nome : '', cat: orig ? orig.cat : (categorias()[0] || 'Miscelâneas'),
+      nome: orig ? orig.nome : (props.nomeInicial || ''), cat: orig ? orig.cat : (categorias()[0] || 'Miscelâneas'),
       kcal: orig ? String(orig.kcal) : '', prot: orig ? fmt(orig.prot) : '', carbo: orig ? fmt(orig.carbo) : '', gord: orig ? fmt(orig.gord) : ''
     });
     var v = st[0], setV = st[1];
@@ -879,8 +879,14 @@
   function SeletorAlimento(props) {
     var st = useState(''); var busca = st[0], setBusca = st[1];
     var cst = useState('todas'); var cat = cst[0], setCat = cst[1];
+    var fst = useState(false); var cadastrando = fst[0], setCadastrando = fst[1];
     var lista = useMemo(function () { return filtrarAlimentos(busca, cat); }, [busca, cat]);
     var LIM = 80, visiveis = lista.slice(0, LIM);
+    if (cadastrando) {
+      return <FormAlimento nomeInicial={busca}
+        onVoltar={function () { setCadastrando(false); }}
+        onPronto={function (id) { setCadastrando(false); props.onEscolher(obterAlimento(id)); }} />;
+    }
     return (
       <div style={S.screen}>
         <Cabecalho titulo="Escolher alimento" onVoltar={props.onVoltar} />
@@ -894,9 +900,13 @@
             {categorias().map(function (c) { return <option key={c} value={c}>{c}</option>; })}
           </select>
         </div>
-        {lista.length === 0 ? <div style={S.card}><div style={S.note}>Nenhum alimento encontrado.</div></div>
-          : visiveis.map(function (a) { return <ItemAlimento key={a.id} alimento={a} onClick={function () { props.onEscolher(a); }} />; })}
-        {lista.length > LIM ? <div style={Object.assign({}, S.note, { textAlign: 'center', padding: '8px 0' })}>Mostrando {LIM} de {lista.length}. Refine a busca.</div> : null}
+        {lista.length === 0
+          ? <div style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>Nenhum alimento encontrado{busca ? ' para “' + busca + '”' : ''}.</div><button style={S.btn} onClick={function () { setCadastrando(true); }}>{busca ? 'Cadastrar “' + busca + '”' : 'Cadastrar novo alimento'}</button></div>
+          : <div>
+            {visiveis.map(function (a) { return <ItemAlimento key={a.id} alimento={a} onClick={function () { props.onEscolher(a); }} />; })}
+            {lista.length > LIM ? <div style={Object.assign({}, S.note, { textAlign: 'center', padding: '8px 0' })}>Mostrando {LIM} de {lista.length}. Refine a busca.</div> : null}
+            <button style={Object.assign({}, S.btnGhost, { marginTop: 8 })} onClick={function () { setCadastrando(true); }}>Não encontrou? Cadastrar novo alimento</button>
+          </div>}
       </div>
     );
   }
