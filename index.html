@@ -44,6 +44,31 @@
   <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 
+  <!-- Firebase (compat: expõe `firebase` global, funciona sem bundler) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    // Configuração pública do projeto Fuel (protegida pelas Security Rules do Firestore).
+    try {
+      var firebaseConfig = {
+        apiKey: "AIzaSyA48iJH0Yq1OhlTeKeaJq1c6_Ect230XC8",
+        authDomain: "fuel-14edd.firebaseapp.com",
+        projectId: "fuel-14edd",
+        storageBucket: "fuel-14edd.firebasestorage.app",
+        messagingSenderId: "69794973140",
+        appId: "1:69794973140:web:d31a13ecf9b6fabeb38241"
+      };
+      firebase.initializeApp(firebaseConfig);
+      // Cache offline nativo: funciona sem internet e sincroniza ao reconectar.
+      firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(function (e) {
+        console.warn("Persistência offline indisponível:", e && e.code);
+      });
+      window.fbAuth = firebase.auth();
+      window.fbDb = firebase.firestore();
+    } catch (e) { console.error("Falha ao iniciar Firebase:", e); }
+  </script>
+
   <!-- Dados da TACO (semente de alimentos). Script comum: executa antes do app. -->
   <script src="dados-taco.js"></script>
 

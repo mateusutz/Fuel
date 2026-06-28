@@ -14,13 +14,41 @@
      CAMADA DE DADOS — todo acesso a storage passa por aqui.
      ============================================================ */
   var NS = 'fuel:';
+  // Chaves de conteúdo que sincronizam com a nuvem (prefs de navegação ficam locais).
+  var CHAVES_SYNC = ['perfil', 'metasManuais', 'refeicoes', 'semana', 'alimentosUsuario', 'alimentosOverride', 'porcoes'];
+  var CURRENT_UID = null;
+  function setCurrentUid(uid) { CURRENT_UID = uid || null; }
+  function nuvemDoc(key) { return window.fbDb.collection('users').doc(CURRENT_UID).collection('state').doc(key); }
+  function nuvemSet(key, value) {
+    if (!CURRENT_UID || !window.fbDb) return;
+    try { nuvemDoc(key).set({ value: value, atualizadoEm: Date.now() }).catch(function (e) { console.warn('Nuvem set falhou:', key, e && e.code); }); } catch (e) { }
+  }
   function storeGet(key, fallback) {
     try { var raw = localStorage.getItem(NS + key); if (raw == null) return fallback; return JSON.parse(raw); }
     catch (e) { return fallback; }
   }
   function storeSet(key, value) {
-    try { localStorage.setItem(NS + key, JSON.stringify(value)); return true; } catch (e) { return false; }
+    try { localStorage.setItem(NS + key, JSON.stringify(value)); } catch (e) { return false; }
+    if (CHAVES_SYNC.indexOf(key) >= 0) nuvemSet(key, value);
+    return true;
   }
+  // No login: baixa o estado da nuvem para o cache local. Se a nuvem estiver vazia
+  // (primeiro login), sobe os dados locais existentes — migração sem perda.
+  async function carregarTudoDaNuvem() {
+    if (!CURRENT_UID || !window.fbDb) return;
+    var snap;
+    try { snap = await window.fbDb.collection('users').doc(CURRENT_UID).collection('state').get(); }
+    catch (e) { console.warn('Carregar nuvem falhou:', e && e.code); return; }
+    var temNaNuvem = 0;
+    snap.forEach(function (d) { var data = d.data(); if (data && Object.prototype.hasOwnProperty.call(data, 'value')) { temNaNuvem++; try { localStorage.setItem(NS + d.id, JSON.stringify(data.value)); } catch (e) { } } });
+    if (temNaNuvem === 0) { // primeiro login: migra o que houver local para a nuvem
+      CHAVES_SYNC.forEach(function (key) {
+        var raw = localStorage.getItem(NS + key);
+        if (raw != null) { try { nuvemDoc(key).set({ value: JSON.parse(raw), atualizadoEm: Date.now() }); } catch (e) { } }
+      });
+    }
+  }
+  function limparLocalSync() { CHAVES_SYNC.forEach(function (key) { try { localStorage.removeItem(NS + key); } catch (e) { } }); }
   function storeColetarTudo() {
     var out = {};
     try {
@@ -592,6 +620,18 @@
       </div>
     );
   }
+  function CardConta() {
+    if (!window.fbAuth) return null;
+    var u = window.fbAuth.currentUser;
+    if (!u) return null;
+    return (
+      <div style={S.card}>
+        <div style={S.cardTitle}>Conta</div>
+        <div style={{ fontSize: 13.5, color: C.ink2, marginBottom: 14 }}>Conectado como <span style={{ color: C.ink, fontWeight: 600 }}>{u.email || 'usuário'}</span></div>
+        <button style={Object.assign({}, S.btnGhost, { color: C.danger, borderColor: C.dangerBorder })} onClick={sairDaConta}>Sair da conta</button>
+      </div>
+    );
+  }
   function TelaPerfil() {
     var pst = useState(carregarPerfil); var perfil = pst[0], setPerfil = pst[1];
     var mst = useState(function () { return storeGet('metasManuais', null); }); var manuais = mst[0], setManuais = mst[1];
@@ -633,6 +673,7 @@
         {!valido ? <div style={S.card}><div style={S.note}>Preencha idade, altura e peso para ver suas metas.</div></div>
           : editando ? <EditorManual metas={metas} onSalvar={function (m) { setManuais(m); setEditando(false); }} onCancelar={function () { setEditando(false); }} />
             : <div><CardMetas metas={metas} />{manuais ? <button style={S.btnGhost} onClick={function () { setManuais(null); }}>Voltar às metas automáticas</button> : <button style={S.btnGhost} onClick={function () { setEditando(true); }}>Editar metas manualmente</button>}<div style={{ height: 14 }} /></div>}
+        <CardConta />
         <CardBackup />
         <div style={Object.assign({}, S.note, { textAlign: 'center', padding: '4px 10px 0' })}>As metas são estimativas informativas, não orientação médica. Para um plano individual, consulte um nutricionista.</div>
       </div>
@@ -1353,11 +1394,167 @@
      APP + navegação inferior
      ============================================================ */
   var ABAS = [{ id: 'hoje', rotulo: 'Hoje' }, { id: 'semana', rotulo: 'Semana' }, { id: 'biblioteca', rotulo: 'Biblioteca' }, { id: 'perfil', rotulo: 'Perfil' }];
+  function TelaCarregando(props) {
+    return (
+      <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, letterSpacing: 2, textTransform: 'uppercase', color: C.brand }}>Fuel</div>
+        <div style={{ width: 26, height: 26, border: '3px solid ' + C.line, borderTopColor: C.brand, borderRadius: '50%', animation: 'fuelspin 0.8s linear infinite' }} />
+        <div style={{ color: C.ink2, fontSize: 13.5 }}>{props.texto || 'Carregando…'}</div>
+        <style>{'@keyframes fuelspin{to{transform:rotate(360deg)}}'}</style>
+      </div>
+    );
+  }
+  function IconeGoogle(props) {
+    var s = props.size || 18;
+    return (
+      <svg width={s} height={s} viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z" />
+        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+        <path fill="#4CAF50" d="M24 44c5.5 0 10.5-2.1 14.3-5.6l-6.6-5.6C29.7 34.6 27 35.6 24 35.6c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.6 5.6C41.4 35.9 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5z" />
+      </svg>
+    );
+  }
+  function traduzErroAuth(code) {
+    var m = {
+      'auth/invalid-email': 'E-mail inválido.',
+      'auth/user-not-found': 'Não encontramos uma conta com esse e-mail.',
+      'auth/wrong-password': 'Senha incorreta.',
+      'auth/invalid-credential': 'E-mail ou senha incorretos.',
+      'auth/email-already-in-use': 'Esse e-mail já tem conta. Tente entrar.',
+      'auth/weak-password': 'A senha precisa de pelo menos 6 caracteres.',
+      'auth/missing-password': 'Digite a senha.',
+      'auth/too-many-requests': 'Muitas tentativas. Tente de novo daqui a pouco.',
+      'auth/popup-closed-by-user': 'Você fechou a janela do Google antes de concluir.',
+      'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Tente de novo.',
+      'auth/network-request-failed': 'Sem conexão. Confira sua internet.',
+      'auth/unauthorized-domain': 'Este endereço não está autorizado no Firebase.'
+    };
+    return m[code] || 'Algo deu errado. Tente de novo.';
+  }
+  function LoginScreen() {
+    var ms = useState('entrar'); var modo = ms[0], setModo = ms[1]; // entrar | criar | reset
+    var es = useState(''); var email = es[0], setEmail = es[1];
+    var ps = useState(''); var senha = ps[0], setSenha = ps[1];
+    var bs = useState(false); var ocupado = bs[0], setOcupado = bs[1];
+    var rs = useState(''); var erro = rs[0], setErro = rs[1];
+    var gs = useState(''); var aviso = gs[0], setAviso = gs[1];
+    function limpa() { setErro(''); setAviso(''); }
+    function comEmail() {
+      limpa();
+      if (!email.trim()) { setErro('Digite seu e-mail.'); return; }
+      setOcupado(true);
+      var p;
+      if (modo === 'reset') {
+        p = window.fbAuth.sendPasswordResetEmail(email.trim()).then(function () {
+          setAviso('Enviamos um link de recuperação para o seu e-mail.'); setModo('entrar');
+        });
+      } else if (modo === 'criar') {
+        p = window.fbAuth.createUserWithEmailAndPassword(email.trim(), senha);
+      } else {
+        p = window.fbAuth.signInWithEmailAndPassword(email.trim(), senha);
+      }
+      p.catch(function (e) { setErro(traduzErroAuth(e && e.code)); }).then(function () { setOcupado(false); });
+    }
+    function comGoogle() {
+      limpa(); setOcupado(true);
+      var prov = new firebase.auth.GoogleAuthProvider();
+      window.fbAuth.signInWithPopup(prov).catch(function (e) {
+        if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) {
+          return window.fbAuth.signInWithRedirect(prov);
+        }
+        setErro(traduzErroAuth(e && e.code)); setOcupado(false);
+      });
+    }
+    var titulo = modo === 'criar' ? 'Criar conta' : (modo === 'reset' ? 'Recuperar senha' : 'Entrar');
+    var btnTxt = modo === 'criar' ? 'Criar conta' : (modo === 'reset' ? 'Enviar link' : 'Entrar');
+    return (
+      <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 18px', maxWidth: 420, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 52, letterSpacing: 2, textTransform: 'uppercase', color: C.brand, lineHeight: 1 }}>Fuel</div>
+          <div style={{ color: C.ink2, fontSize: 13.5, marginTop: 4 }}>Seu plano alimentar, na nuvem.</div>
+        </div>
+        <div style={S.card}>
+          <div style={Object.assign({}, S.cardTitle, { marginBottom: 16 })}>{titulo}</div>
+          <div style={S.field}>
+            <label style={S.label}>E-mail</label>
+            <input style={S.input} type="email" autoComplete="email" inputMode="email" value={email} onChange={function (e) { setEmail(e.target.value); }} placeholder="voce@email.com" />
+          </div>
+          {modo !== 'reset' ? (
+            <div style={S.field}>
+              <label style={S.label}>Senha</label>
+              <input style={S.input} type="password" autoComplete={modo === 'criar' ? 'new-password' : 'current-password'} value={senha} onChange={function (e) { setSenha(e.target.value); }} placeholder="••••••" />
+            </div>
+          ) : null}
+          {erro ? <div style={{ background: C.dangerBg || C.warnBg, border: '1px solid ' + C.dangerBorder, color: C.danger, fontSize: 12.5, padding: '9px 12px', borderRadius: 9, marginBottom: 12 }}>{erro}</div> : null}
+          {aviso ? <div style={{ background: C.warnBg, border: '1px solid ' + C.warnBorder, color: C.warnText, fontSize: 12.5, padding: '9px 12px', borderRadius: 9, marginBottom: 12 }}>{aviso}</div> : null}
+          <button style={Object.assign({}, S.btn, ocupado ? { opacity: 0.6 } : {})} disabled={ocupado} onClick={comEmail}>{ocupado ? 'Aguarde…' : btnTxt}</button>
+          {modo === 'entrar' ? (
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <button onClick={function () { limpa(); setModo('reset'); }} style={{ background: 'none', border: 'none', color: C.ink2, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}>Esqueci minha senha</button>
+            </div>
+          ) : null}
+          {modo !== 'reset' ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0' }}>
+                <div style={{ flex: 1, height: 1, background: C.line }} />
+                <div style={{ color: C.ink2, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }}>ou</div>
+                <div style={{ flex: 1, height: 1, background: C.line }} />
+              </div>
+              <button onClick={comGoogle} disabled={ocupado} style={{ width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: C.ink, background: C.surface, border: '1px solid ' + C.line, borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><IconeGoogle size={18} />Continuar com Google</button>
+            </div>
+          ) : null}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 16, color: C.ink2, fontSize: 13 }}>
+          {modo === 'entrar' ? <span>Ainda não tem conta? <button onClick={function () { limpa(); setModo('criar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Criar conta</button></span> : null}
+          {modo === 'criar' ? <span>Já tem conta? <button onClick={function () { limpa(); setModo('entrar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Entrar</button></span> : null}
+          {modo === 'reset' ? <button onClick={function () { limpa(); setModo('entrar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Voltar para o login</button> : null}
+        </div>
+      </div>
+    );
+  }
+  function sairDaConta() {
+    if (!window.fbAuth) return;
+    window.fbAuth.signOut().then(function () { limparLocalSync(); }).catch(function () { });
+  }
   function App() {
+    var ar = useState(false); var authReady = ar[0], setAuthReady = ar[1];
+    var au = useState(undefined); var authUser = au[0], setAuthUser = au[1];
+    var dc = useState(false); var dadosCarregados = dc[0], setDadosCarregados = dc[1];
     var ast = useState(function () { return storeGet('abaAtiva', 'hoje'); });
     var aba = ast[0], setAba = ast[1];
     useEffect(function () { storeSet('abaAtiva', aba); }, [aba]);
     useEffect(function () { limparCopiasOrfas(); }, []);
+    // Observa login/logout. Sem Firebase disponível, roda local (sem travar).
+    useEffect(function () {
+      if (!window.fbAuth) { setAuthReady(true); setAuthUser(null); return; }
+      var unsub = window.fbAuth.onAuthStateChanged(function (u) {
+        setCurrentUid(u ? u.uid : null);
+        setAuthUser(u || null);
+        setAuthReady(true);
+      });
+      return unsub;
+    }, []);
+    // Ao logar, baixa os dados da nuvem ANTES de liberar o app (espera a nuvem responder).
+    useEffect(function () {
+      if (!authReady || !authUser) { setDadosCarregados(false); return; }
+      var cancelado = false;
+      setDadosCarregados(false);
+      (async function () {
+        await carregarTudoDaNuvem();
+        limparCopiasOrfas();
+        if (!cancelado) setDadosCarregados(true);
+      })();
+      return function () { cancelado = true; };
+    }, [authReady, authUser]);
+
+    // PORTÃO de autenticação (só quando o Firebase está disponível).
+    if (window.fbAuth) {
+      if (!authReady || authUser === undefined) return <TelaCarregando texto="Iniciando…" />;
+      if (!authUser) return <LoginScreen />;
+      if (!dadosCarregados) return <TelaCarregando texto="Sincronizando seus dados…" />;
+    }
+
     var conteudo;
     if (aba === 'perfil') conteudo = <TelaPerfil />;
     else if (aba === 'biblioteca') conteudo = <TelaBiblioteca />;
@@ -1394,7 +1591,8 @@
     copiarDiaPara: copiarDiaPara, clonarRefeicaoComoCopia: clonarRefeicaoComoCopia,
     listaDeCompras: listaDeCompras, listaComprasTexto: listaComprasTexto, qtdCompra: qtdCompra,
     limparCopiasOrfas: limparCopiasOrfas, metasAtuais: metasAtuais, calcularIdade: calcularIdade, diaDeHojeId: diaDeHojeId,
-    storeGet: storeGet, storeSet: storeSet
+    storeGet: storeGet, storeSet: storeSet,
+    setCurrentUid: setCurrentUid, carregarTudoDaNuvem: carregarTudoDaNuvem, nuvemSet: nuvemSet, limparLocalSync: limparLocalSync, CHAVES_SYNC: CHAVES_SYNC
   };
   if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }
   if (typeof document !== 'undefined' && document.getElementById('root')) {

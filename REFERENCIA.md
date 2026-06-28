@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 11 (Redesign visual: tema escuro no design system do app Forge, mantendo a paleta verde do Fuel).
-- **CACHE_VERSION atual:** `fuel-v11` (em `sw.js`).
+- **Lote concluído:** 12 (Login + armazenamento em nuvem via Firebase, espelhando o app Forge, com identidade visual do Fuel).
+- **CACHE_VERSION atual:** `fuel-v12` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -97,6 +97,15 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Linguagem do Forge:** elevação por **borda** (não sombra) — cards são `card` + `1px solid line`; cantos mais retos (9–12px); labels/seções em CAIXA ALTA com `letter-spacing`; header com borda inferior; números grandes em destaque. Anel de macros (assinatura) mantido. Ícones de linha (Feather).
 - `index.html`/`manifest.json`: `theme-color`/background `#0E1411`, status bar translúcida.
 - **Toda a lógica e o modelo de dados são os mesmos** — o lote 11 mexeu só na "pele" (tokens `C`, estilos `S`, fontes, e cores antes hardcoded migradas para `C`).
+
+## Nuvem e login (lote 12 — Firebase, modelo do app Forge)
+- **Firebase exclusivo do Fuel** (projeto `fuel-14edd`), compat 10.12.2 via CDN no `index.html` (app+auth+firestore), com `enablePersistence({synchronizeTabs:true})`. Expõe `window.fbAuth` e `window.fbDb`. Config é pública (protegida pelas Security Rules).
+- **Login obrigatório** (Google + e-mail/senha + recuperar senha). O app abre no `LoginScreen` (identidade Fuel: dark, Barlow, verde). `traduzErroAuth()` traduz os códigos do Firebase.
+- **Gate** no `App`: `authReady`/`authUser`(undefined=verificando)/`dadosCarregados`. `onAuthStateChanged` → `setCurrentUid`. Ao logar, `await carregarTudoDaNuvem()` baixa o estado da nuvem **antes** de liberar o app (tela "Sincronizando…"). Sem `window.fbAuth` (raro), roda local para não travar.
+- **Camada de storage:** `storeGet` permanece **síncrono** (lê o cache local — leitura rápida, offline). `storeSet` grava local **e** espelha na nuvem (`nuvemSet`, assíncrono) para as `CHAVES_SYNC` (`perfil, metasManuais, refeicoes, semana, alimentosUsuario, alimentosOverride, porcoes`); prefs de navegação ficam locais. Dados na nuvem em `users/{uid}/state/{chave}` (doc `{value, atualizadoEm}`).
+- **Migração sem perda:** no 1º login, se a nuvem está vazia, `carregarTudoDaNuvem` **sobe** os dados locais existentes. Se a nuvem tem dados, ela é a fonte (sobrescreve o local). `limparLocalSync()` (no logout) remove as chaves de conteúdo do cache local, preservando navegação.
+- **Security Rules** (colar no console do Firestore): acesso a `users/{uid}/**` só quando `request.auth.uid == uid`.
+- **Teste:** a camada de sync tem teste com Firestore simulado (bloco [16]); o fluxo real de auth só é validável no app publicado (jsdom não roda o Firebase real — o gate degrada para local).
 
 ## Fluxo de deploy
 - Editar (geralmente só `app.js`) → validar no Babel **classic** → smoke test jsdom +
