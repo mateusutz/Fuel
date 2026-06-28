@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 10 (Aba “Hoje”; + Cadastrar alimento da busca, + Momento do dia com múltipla escolha, + Perfil c/ data de nascimento, Biblioteca, Refeições, Semana, Dia, Copiar dia, Lista de compras).
-- **CACHE_VERSION atual:** `fuel-v10` (em `sw.js`).
+- **Lote concluído:** 11 (Redesign visual: tema escuro no design system do app Forge, mantendo a paleta verde do Fuel).
+- **CACHE_VERSION atual:** `fuel-v11` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -21,7 +21,7 @@ dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso
 ## Dependências externas (CDN, sem build)
 - react@18.3.1, react-dom@18.3.1 (UMD, unpkg)
 - @babel/standalone@7.25.6
-- Fontes Google: Nunito (números/títulos) e Inter (corpo); fallback de sistema offline.
+- Fontes Google: Barlow Condensed (números/títulos) e Inter (corpo); fallback de sistema offline.
 
 ## Modelo de dados (chaves de storage)
 Prefixo `fuel:` em todas. Hoje:
@@ -86,11 +86,17 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Funções (em `window.FuelEngine`):** `todosAlimentos()`, `obterAlimento(id)`, `criarAlimento(dados)`, `editarAlimento(id, campos)`, `excluirAlimento(id)`, `porcoesDe(id)`, `salvarPorcoes(id, lista)`, `categorias()`, `norm(s)` (busca sem acento).
 - **Unidade:** tudo em gramas; líquidos entram como porção ("1 copo (200 g)"). Base sempre 100 g.
 
-## Identidade visual
-- Fundo `#FAFAF7`, cartão `#FFFFFF`, texto `#1E2A24`, secundário `#6B7770`, linha `#ECEFEC`.
-- Marca `#3FA968` / escuro `#2C6E49`.
-- Macros (fixos): proteína `#E5645E`, carbo `#E0A23B`, gordura `#4C9BD6`.
-- Cantos 12–16px, sombras suaves, sem emojis, ícones de linha (Feather).
+## Identidade visual (lote 11 — tema escuro, design system do app Forge)
+- **Tema ESCURO** com alma verde do Fuel. Tokens centrais em `C` (app.js):
+  - Fundo `#0E1411` (verde-carvão), cartão `#18211C`, superfície `#1E2823`, campo `#121A16`.
+  - Texto `#ECEFEA`, secundário `#8B968D`, linha `#273330`, trilho `#222C27`.
+  - Marca `#5BC487` / texto-marca `#6FD198` / sobre-marca `#08130C`.
+  - Macros (fixos, clareados p/ o dark): proteína `#EC7A74`, carbo `#E8B45A`, gordura `#6BB0E0`.
+  - Semânticos: `toggleOn`, `chipBg`, `danger`/`dangerBtn`/`dangerBorder`, `warnBg`/`warnBorder`/`warnText`, `navBg`.
+- **Tipografia:** Barlow Condensed (700/800, CAIXA ALTA, `tabular-nums`) em títulos/números via `DISPLAY`; Inter no corpo. Carregadas no `index.html`.
+- **Linguagem do Forge:** elevação por **borda** (não sombra) — cards são `card` + `1px solid line`; cantos mais retos (9–12px); labels/seções em CAIXA ALTA com `letter-spacing`; header com borda inferior; números grandes em destaque. Anel de macros (assinatura) mantido. Ícones de linha (Feather).
+- `index.html`/`manifest.json`: `theme-color`/background `#0E1411`, status bar translúcida.
+- **Toda a lógica e o modelo de dados são os mesmos** — o lote 11 mexeu só na "pele" (tokens `C`, estilos `S`, fontes, e cores antes hardcoded migradas para `C`).
 
 ## Fluxo de deploy
 - Editar (geralmente só `app.js`) → validar no Babel **classic** → smoke test jsdom +

@@ -402,20 +402,30 @@
   /* ============================================================
      ESTILO
      ============================================================ */
-  var C = { bg: '#FAFAF7', card: '#FFFFFF', ink: '#1E2A24', ink2: '#6B7770', line: '#ECEFEC', brand: '#3FA968', brandDark: '#2C6E49', prot: '#E5645E', carb: '#E0A23B', fat: '#4C9BD6' };
-  var DISPLAY = "'Nunito', system-ui, sans-serif";
+  var C = {
+    bg: '#0E1411', card: '#18211C', surface: '#1E2823', inputBg: '#121A16',
+    ink: '#ECEFEA', ink2: '#8B968D',
+    line: '#273330', lineStrong: '#324039', track: '#222C27',
+    brand: '#5BC487', brandDark: '#6FD198', onBrand: '#08130C',
+    prot: '#EC7A74', carb: '#E8B45A', fat: '#6BB0E0',
+    toggleOn: '#2E3B34', chipBg: '#16271D',
+    danger: '#F08A82', dangerBtn: '#C0473F', dangerBorder: '#46291F',
+    warnBg: '#241D12', warnBorder: '#3D3015', warnText: '#E8B45A',
+    navBg: 'rgba(14,20,17,0.92)'
+  };
+  var DISPLAY = "'Barlow Condensed', system-ui, sans-serif";
   var S = {
-    screen: { maxWidth: 520, margin: '0 auto', padding: '20px 16px 96px' },
-    h1: { fontFamily: DISPLAY, fontWeight: 800, fontSize: 26, margin: '4px 0 2px', color: C.ink },
-    sub: { color: C.ink2, fontSize: 14, margin: '0 0 18px' },
-    card: { background: C.card, borderRadius: 16, padding: 18, marginBottom: 14, boxShadow: '0 1px 3px rgba(30,42,36,0.05), 0 6px 18px rgba(30,42,36,0.04)' },
-    cardTitle: { fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: C.ink, margin: '0 0 14px' },
-    label: { display: 'block', fontSize: 13, color: C.ink2, marginBottom: 6, fontWeight: 500 },
-    input: { width: '100%', padding: '12px 14px', fontSize: 16, color: C.ink, background: '#fff', border: '1.5px solid ' + C.line, borderRadius: 12, outline: 'none' },
+    screen: { maxWidth: 460, margin: '0 auto', padding: '20px 16px 96px' },
+    h1: { fontFamily: DISPLAY, fontWeight: 800, fontSize: 32, letterSpacing: 0.5, textTransform: 'uppercase', margin: '2px 0 2px', color: C.ink, lineHeight: 0.98 },
+    sub: { color: C.ink2, fontSize: 13.5, margin: '0 0 18px' },
+    card: { background: C.card, border: '1px solid ' + C.line, borderRadius: 12, padding: 18, marginBottom: 14 },
+    cardTitle: { fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, letterSpacing: 0.5, textTransform: 'uppercase', color: C.ink, margin: '0 0 14px' },
+    label: { display: 'block', fontSize: 11.5, color: C.ink2, marginBottom: 7, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' },
+    input: { width: '100%', padding: '12px 14px', fontSize: 16, color: C.ink, background: C.inputBg, border: '1px solid ' + C.line, borderRadius: 9, outline: 'none' },
     row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 },
     field: { marginBottom: 14 },
-    btn: { width: '100%', padding: '13px 16px', fontSize: 15, fontWeight: 600, color: '#fff', background: C.brand, border: 'none', borderRadius: 12, cursor: 'pointer' },
-    btnGhost: { width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: C.brandDark, background: 'transparent', border: '1.5px solid ' + C.line, borderRadius: 12, cursor: 'pointer' },
+    btn: { width: '100%', padding: '13px 16px', fontSize: 13.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: C.onBrand, background: C.brand, border: 'none', borderRadius: 9, cursor: 'pointer' },
+    btnGhost: { width: '100%', padding: '12px 16px', fontSize: 12.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: C.brandDark, background: 'transparent', border: '1px solid ' + C.line, borderRadius: 9, cursor: 'pointer' },
     note: { fontSize: 12.5, color: C.ink2, lineHeight: 1.5 }
   };
 
@@ -447,7 +457,7 @@
         <div style={{ display: 'flex', gap: 8 }}>
           {props.options.map(function (o) {
             var on = props.value === o.value;
-            return <button key={o.value} onClick={function () { props.onChange(o.value); }} style={{ flex: 1, padding: '11px 8px', fontSize: 14, fontWeight: 600, color: on ? '#fff' : C.ink, background: on ? C.brand : '#fff', border: '1.5px solid ' + (on ? C.brand : C.line), borderRadius: 12, cursor: 'pointer' }}>{o.label}</button>;
+            return <button key={o.value} onClick={function () { props.onChange(o.value); }} style={{ flex: 1, padding: '11px 8px', fontSize: 14, fontWeight: 600, color: on ? C.onBrand : C.ink, background: on ? C.brand : C.surface, border: '1.5px solid ' + (on ? C.brand : C.line), borderRadius: 12, cursor: 'pointer' }}>{o.label}</button>;
           })}
         </div>
       </div>
@@ -470,8 +480,8 @@
           <g transform={'rotate(-90 ' + cx + ' ' + cy + ')'}>{arcs}</g>
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 28, color: C.ink, lineHeight: 1 }}>{props.kcal}</div>
-          <div style={{ fontSize: 11, color: C.ink2, marginTop: 2 }}>{props.unidade || 'kcal / dia'}</div>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 34, letterSpacing: 0.5, color: C.ink, lineHeight: 0.92, fontVariantNumeric: 'tabular-nums' }}>{props.kcal}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: C.ink2, marginTop: 3 }}>{props.unidade || 'kcal / dia'}</div>
         </div>
       </div>
     );
@@ -523,7 +533,7 @@
       <div style={S.card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={S.cardTitle}>Suas metas diárias</div>
-          {m.manual ? <span style={{ fontSize: 11, fontWeight: 700, color: C.brandDark, background: '#EAF5EE', padding: '3px 8px', borderRadius: 999 }}>MANUAL</span> : null}
+          {m.manual ? <span style={{ fontSize: 11, fontWeight: 700, color: C.brandDark, background: C.chipBg, padding: '3px 8px', borderRadius: 999 }}>MANUAL</span> : null}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <AnelMacros kcal={m.kcal} protKcal={m.protKcal} carboKcal={m.carboKcal} fatKcal={m.fatKcal} />
@@ -534,7 +544,7 @@
           </div>
         </div>
         {!m.manual ? <div style={{ marginTop: 6, paddingTop: 14, borderTop: '1px solid ' + C.line }}><div style={{ fontSize: 12.5, color: C.ink2 }}>Gasto estimado: <b style={{ color: C.ink }}>{m.tdee} kcal</b> (TDEE) · basal {m.bmr} kcal · proteína sobre {m.baseProteina}.</div></div> : null}
-        {m.avisos && m.avisos.length ? <div style={{ marginTop: 12 }}>{m.avisos.map(function (a, i) { return <div key={i} style={{ fontSize: 12.5, color: '#9A6B12', background: '#FBF3E2', borderRadius: 10, padding: '9px 11px', marginTop: 6 }}>{a}</div>; })}</div> : null}
+        {m.avisos && m.avisos.length ? <div style={{ marginTop: 12 }}>{m.avisos.map(function (a, i) { return <div key={i} style={{ fontSize: 12.5, color: C.warnText, background: C.warnBg, borderRadius: 10, padding: '9px 11px', marginTop: 6 }}>{a}</div>; })}</div> : null}
       </div>
     );
   }
@@ -578,7 +588,7 @@
         <div style={{ height: 10 }} />
         <button style={S.btnGhost} onClick={function () { if (fileRef.current) fileRef.current.click(); }}>Importar backup</button>
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={aoSelecionar} />
-        {msg ? <div style={{ marginTop: 12, fontSize: 13, color: msg.ok ? C.brandDark : '#B0413B' }}>{msg.txt}</div> : null}
+        {msg ? <div style={{ marginTop: 12, fontSize: 13, color: msg.ok ? C.brandDark : C.danger }}>{msg.txt}</div> : null}
       </div>
     );
   }
@@ -655,10 +665,10 @@
   function SeletorSecao(props) {
     var abas = [{ id: 'alimentos', rotulo: 'Alimentos' }, { id: 'refeicoes', rotulo: 'Refeições' }];
     return (
-      <div style={{ display: 'flex', gap: 6, background: '#EEF2EE', padding: 4, borderRadius: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 6, background: C.track, padding: 4, borderRadius: 12, marginBottom: 16 }}>
         {abas.map(function (a) {
           var on = props.secao === a.id;
-          return <button key={a.id} onClick={function () { props.onSecao(a.id); }} style={{ flex: 1, padding: '9px 8px', fontSize: 13.5, fontWeight: 700, border: 'none', borderRadius: 9, cursor: 'pointer', color: on ? C.brandDark : C.ink2, background: on ? '#fff' : 'transparent', boxShadow: on ? '0 1px 2px rgba(30,42,36,0.08)' : 'none' }}>{a.rotulo}</button>;
+          return <button key={a.id} onClick={function () { props.onSecao(a.id); }} style={{ flex: 1, padding: '9px 8px', fontSize: 13.5, fontWeight: 700, border: 'none', borderRadius: 9, cursor: 'pointer', color: on ? C.brandDark : C.ink2, background: on ? C.toggleOn : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.3)' : 'none' }}>{a.rotulo}</button>;
         })}
       </div>
     );
@@ -702,7 +712,7 @@
       props.onSalvar({ id: (props.porcao && props.porcao.id) || (uid('p-')), rotulo: v.rotulo.trim(), g: Math.round(g * 10) / 10 });
     }
     return (
-      <div style={{ background: '#F4F7F4', border: '1px solid ' + C.line, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+      <div style={{ background: C.surface, border: '1px solid ' + C.line, borderRadius: 12, padding: 14, marginBottom: 10 }}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10, color: C.ink, fontFamily: DISPLAY }}>{props.porcao ? 'Editar porção' : 'Nova porção'}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 10, marginBottom: 10 }}>
           <div><label style={S.label}>Nome</label><input style={S.input} type="text" placeholder="ex.: 1 fatia" value={v.rotulo} onChange={function (e) { setV(Object.assign({}, v, { rotulo: e.target.value })); }} /></div>
@@ -772,8 +782,8 @@
           })}
         </div>
 
-        {!confirmar ? <button style={Object.assign({}, S.btnGhost, { color: '#B0413B', borderColor: '#F0DAD8' })} onClick={function () { setConfirmar(true); }}>{a.origem === 'usuario' ? 'Excluir alimento' : 'Remover da lista'}</button>
-          : <div style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>{a.origem === 'usuario' ? 'Excluir este alimento de vez?' : 'Remover este alimento da TACO da sua lista? Você pode trazer de volta restaurando um backup.'}</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, { background: '#C0473F' })} onClick={function () { excluirAlimento(id); props.onExcluido(); }}>Sim, remover</button><button style={S.btnGhost} onClick={function () { setConfirmar(false); }}>Cancelar</button></div></div>}
+        {!confirmar ? <button style={Object.assign({}, S.btnGhost, { color: C.danger, borderColor: C.dangerBorder })} onClick={function () { setConfirmar(true); }}>{a.origem === 'usuario' ? 'Excluir alimento' : 'Remover da lista'}</button>
+          : <div style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>{a.origem === 'usuario' ? 'Excluir este alimento de vez?' : 'Remover este alimento da TACO da sua lista? Você pode trazer de volta restaurando um backup.'}</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, { background: C.dangerBtn })} onClick={function () { excluirAlimento(id); props.onExcluido(); }}>Sim, remover</button><button style={S.btnGhost} onClick={function () { setConfirmar(false); }}>Cancelar</button></div></div>}
         <div style={{ height: 8 }} />
       </div>
     );
@@ -814,7 +824,7 @@
           </div>
           <Campo label="Gordura (g)" value={v.gord} onChange={function (x) { set('gord', x); }} />
           {kcalMacros != null ? <div style={Object.assign({}, S.note, { marginTop: -4 })}>Conferência: pelos macros dá ~<b>{kcalMacros} kcal</b>.</div> : null}
-          {erro ? <div style={{ fontSize: 13, color: '#B0413B', marginTop: 10 }}>Preencha o nome e valores numéricos válidos (zero ou mais).</div> : null}
+          {erro ? <div style={{ fontSize: 13, color: C.danger, marginTop: 10 }}>Preencha o nome e valores numéricos válidos (zero ou mais).</div> : null}
         </div>
         <button style={S.btn} onClick={salvar}>{props.id ? 'Salvar alterações' : 'Criar alimento'}</button>
         <div style={{ height: 10 }} />
@@ -945,13 +955,13 @@
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
             {opcoes.map(function (p) {
               var on = p.ehGramas ? v.modo === 'gramas' : (v.modo === 'porcao' && v.porcaoId === p.id);
-              return <button key={p.id} onClick={function () { p.ehGramas ? setV(Object.assign({}, v, { modo: 'gramas' })) : setV(Object.assign({}, v, { modo: 'porcao', porcaoId: p.id })); }} style={{ padding: '9px 12px', fontSize: 13.5, fontWeight: 600, border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? C.brand : '#fff', color: on ? '#fff' : C.ink, borderRadius: 10, cursor: 'pointer' }}>{p.ehGramas ? 'Gramas' : (p.rotulo + ' (' + fmt(p.g) + 'g)')}</button>;
+              return <button key={p.id} onClick={function () { p.ehGramas ? setV(Object.assign({}, v, { modo: 'gramas' })) : setV(Object.assign({}, v, { modo: 'porcao', porcaoId: p.id })); }} style={{ padding: '9px 12px', fontSize: 13.5, fontWeight: 600, border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? C.brand : C.surface, color: on ? C.onBrand : C.ink, borderRadius: 10, cursor: 'pointer' }}>{p.ehGramas ? 'Gramas' : (p.rotulo + ' (' + fmt(p.g) + 'g)')}</button>;
             })}
           </div>
           {v.modo === 'porcao'
             ? <Campo label="Quantas" inputMode="decimal" value={v.qtd} onChange={function (x) { setV(Object.assign({}, v, { qtd: x })); }} />
             : <Campo label="Gramas" inputMode="decimal" value={v.gramas} onChange={function (x) { setV(Object.assign({}, v, { gramas: x })); }} />}
-          <div style={{ background: '#F4F7F4', borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: C.surface, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13.5, color: C.ink2 }}>Total</span>
             <span style={{ fontFamily: DISPLAY, fontWeight: 700, color: C.ink }}>{fmt(r.g)} g · {kcal} kcal</span>
           </div>
@@ -985,7 +995,7 @@
               {ETIQUETAS.map(function (e) {
                 var on = (ref.etiquetas || []).indexOf(e.id) >= 0;
                 return <button key={e.id} onClick={function () { var arr = (ref.etiquetas || []).slice(); var ix = arr.indexOf(e.id); if (ix >= 0) arr.splice(ix, 1); else arr.push(e.id); setCampo('etiquetas', arr); }}
-                  style={{ padding: '7px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? '#EAF5EE' : '#fff', color: on ? C.brandDark : C.ink2 }}>{e.rotulo}</button>;
+                  style={{ padding: '7px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1.5px solid ' + (on ? C.brand : C.line), background: on ? C.chipBg : C.card, color: on ? C.brandDark : C.ink2 }}>{e.rotulo}</button>;
               })}
             </div>
             <div style={{ fontSize: 12, color: C.ink2, marginTop: 6 }}>Em quais momentos esta refeição costuma entrar. Pode marcar mais de um.</div>
@@ -1027,9 +1037,9 @@
 
         {acoes.map(function (ac, i) {
           if (confirmIdx === i) {
-            return <div key={i} style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>{ac.confirmar}</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, ac.danger ? { background: '#C0473F' } : {})} onClick={function () { setConfirmIdx(-1); ac.onClick(); }}>Confirmar</button><button style={S.btnGhost} onClick={function () { setConfirmIdx(-1); }}>Cancelar</button></div></div>;
+            return <div key={i} style={S.card}><div style={Object.assign({}, S.note, { marginBottom: 12 })}>{ac.confirmar}</div><div style={{ display: 'flex', gap: 8 }}><button style={Object.assign({}, S.btn, ac.danger ? { background: C.dangerBtn } : {})} onClick={function () { setConfirmIdx(-1); ac.onClick(); }}>Confirmar</button><button style={S.btnGhost} onClick={function () { setConfirmIdx(-1); }}>Cancelar</button></div></div>;
           }
-          return <div key={i}><button style={Object.assign({}, S.btnGhost, ac.danger ? { color: '#B0413B', borderColor: '#F0DAD8' } : {})} onClick={function () { if (ac.confirmar) setConfirmIdx(i); else ac.onClick(); }}>{ac.label}</button><div style={{ height: 10 }} /></div>;
+          return <div key={i}><button style={Object.assign({}, S.btnGhost, ac.danger ? { color: C.danger, borderColor: C.dangerBorder } : {})} onClick={function () { if (ac.confirmar) setConfirmIdx(i); else ac.onClick(); }}>{ac.label}</button><div style={{ height: 10 }} /></div>;
         })}
         <div style={{ height: 8 }} />
       </div>
@@ -1119,7 +1129,7 @@
             var d = m.kcal - metas.kcal, abs = Math.abs(d);
             if (abs <= 50) return <span><b style={{ color: C.brandDark }}>No alvo</b> — {m.kcal} de {metas.kcal} kcal planejadas.</span>;
             if (d < 0) return <span><b style={{ color: C.ink }}>Faltam {abs} kcal</b> para a meta de {metas.kcal}.</span>;
-            return <span><b style={{ color: '#B0413B' }}>{abs} kcal acima</b> da meta de {metas.kcal}.</span>;
+            return <span><b style={{ color: C.danger }}>{abs} kcal acima</b> da meta de {metas.kcal}.</span>;
           })()}
         </div> : <div style={Object.assign({}, S.note, { marginTop: 10 })}>Defina seu perfil para comparar o dia com uma meta.</div>}
       </div>
@@ -1229,7 +1239,7 @@
             var on = !!sel[d.id], n = idsDoDia(d.id).length;
             return (
               <button key={d.id} onClick={function () { toggle(d.id); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 2px', background: 'none', border: 'none', borderBottom: i < outros.length - 1 ? '1px solid ' + C.line : 'none', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color="#fff" /> : null}</span>
+                <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color={C.onBrand} /> : null}</span>
                 <span style={{ flex: 1, fontSize: 15, color: C.ink }}>{d.rotulo}</span>
                 <span style={{ fontSize: 12, color: C.ink2 }}>{n === 0 ? 'vazio' : (n + (n === 1 ? ' refeição' : ' refeições'))}</span>
               </button>
@@ -1237,7 +1247,7 @@
           })}
         </div>
         <button style={Object.assign({}, S.btnGhost, { marginBottom: 16 })} onClick={selTodos}>Selecionar todos</button>
-        {confirmando ? <div style={Object.assign({}, S.card, { background: '#FBF4E8', border: '1px solid #F0E0C0' })}><div style={Object.assign({}, S.note, { color: C.ink })}>Isto vai substituir o que já existe em: {comConteudo.map(function (d) { return d.rotulo; }).join(', ')}.</div></div> : null}
+        {confirmando ? <div style={Object.assign({}, S.card, { background: C.warnBg, border: '1px solid ' + C.warnBorder })}><div style={Object.assign({}, S.note, { color: C.ink })}>Isto vai substituir o que já existe em: {comConteudo.map(function (d) { return d.rotulo; }).join(', ')}.</div></div> : null}
         <button style={Object.assign({}, S.btn, escolhidos.length === 0 ? { opacity: 0.5 } : {})} disabled={escolhidos.length === 0} onClick={tentarCopiar}>{confirmando ? 'Confirmar e substituir' : ('Copiar para ' + escolhidos.length + ' ' + (escolhidos.length === 1 ? 'dia' : 'dias'))}</button>
       </div>
     );
@@ -1310,7 +1320,7 @@
                       var on = !!marcados[it.id];
                       return (
                         <button key={it.id} onClick={function () { toggle(it.id); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 2px', background: 'none', border: 'none', borderBottom: i < L.grupos[cat].length - 1 ? '1px solid ' + C.line : 'none', cursor: 'pointer', textAlign: 'left' }}>
-                          <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color="#fff" /> : null}</span>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (on ? C.brand : C.line), background: on ? C.brand : 'transparent', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? <Icone nome="check" size={14} color={C.onBrand} /> : null}</span>
                           <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: on ? C.ink2 : C.ink, textDecoration: on ? 'line-through' : 'none' }}>{it.nome}</span>
                           <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: on ? C.ink2 : C.ink, whiteSpace: 'nowrap' }}>{it.q.principal}{it.q.sub ? <span style={{ fontWeight: 400, fontSize: 11.5, color: C.ink2 }}> · {it.q.sub}</span> : null}</span>
                         </button>
@@ -1356,10 +1366,10 @@
     return (
       <div style={{ minHeight: '100dvh', background: C.bg }}>
         {conteudo}
-        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', borderTop: '1px solid ' + C.line, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', background: C.navBg, backdropFilter: 'blur(8px)', borderTop: '1px solid ' + C.line, paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {ABAS.map(function (a) {
             var on = aba === a.id;
-            return <button key={a.id} onClick={function () { setAba(a.id); }} style={{ flex: 1, padding: '10px 6px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: on ? C.brandDark : C.ink2 }}><Icone nome={a.id} size={22} color={on ? C.brandDark : C.ink2} strokeWidth={on ? 2.3 : 1.9} /><span style={{ fontSize: 11, fontWeight: on ? 700 : 500 }}>{a.rotulo}</span></button>;
+            return <button key={a.id} onClick={function () { setAba(a.id); }} style={{ flex: 1, padding: '10px 6px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: on ? C.brandDark : C.ink2 }}><Icone nome={a.id} size={22} color={on ? C.brandDark : C.ink2} strokeWidth={on ? 2.3 : 1.9} /><span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>{a.rotulo}</span></button>;
           })}
         </nav>
       </div>
