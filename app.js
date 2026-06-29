@@ -36,6 +36,10 @@
   // (primeiro login), sobe os dados locais existentes — migração sem perda.
   async function carregarTudoDaNuvem() {
     if (!CURRENT_UID || !window.fbDb) return;
+    // Se este navegador estava logado em OUTRA conta, descarta o cache local antes de
+    // carregar — impede que dados de uma conta apareçam ou migrem para outra no mesmo aparelho.
+    var ultimo = storeGet('ultimoUid', null);
+    if (ultimo && ultimo !== CURRENT_UID) limparLocalSync();
     var snap;
     try { snap = await window.fbDb.collection('users').doc(CURRENT_UID).collection('state').get(); }
     catch (e) { console.warn('Carregar nuvem falhou:', e && e.code); return; }
@@ -47,6 +51,7 @@
         if (raw != null) { try { nuvemDoc(key).set({ value: JSON.parse(raw), atualizadoEm: Date.now() }); } catch (e) { } }
       });
     }
+    storeSet('ultimoUid', CURRENT_UID); // marca o dono do cache (chave local, não sincroniza)
   }
   function limparLocalSync() { CHAVES_SYNC.forEach(function (key) { try { localStorage.removeItem(NS + key); } catch (e) { } }); }
   function storeColetarTudo() {
@@ -430,31 +435,43 @@
   /* ============================================================
      ESTILO
      ============================================================ */
+  // Helper de contraste do design system: texto escuro/claro conforme a luminância do fundo.
+  function onColor(hex) {
+    if (!hex || hex[0] !== '#') return '#FFFFFF';
+    var h = hex.slice(1);
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.62 ? '#0B0F19' : '#FFFFFF';
+  }
+  // Tokens do Forge Design System (superfícies grafite-azulado) + acento verde do Fuel.
+  var ACCENT = '#2FBF6E';
   var C = {
-    bg: '#0E1411', card: '#18211C', surface: '#1E2823', inputBg: '#121A16',
-    ink: '#ECEFEA', ink2: '#8B968D',
-    line: '#273330', lineStrong: '#324039', track: '#222C27',
-    brand: '#5BC487', brandDark: '#6FD198', onBrand: '#08130C',
+    bg: '#0B0F19', card: '#161E2E', surface: '#1B2536', panel: '#121215', inputBg: '#0B0F19',
+    line: '#2A3344', lineStrong: '#2E3A4D', borderInput: '#2E3A4D', divider: '#1B2536', track: '#2A3344',
+    ink: '#f0f0f2', ink2: '#9a9aa2', ink3: '#7a7a82', inkFaint: '#6a6a72', inkDimmer: '#5a5a62',
+    brand: ACCENT, brandDark: ACCENT, onBrand: onColor(ACCENT),
+    success: '#10B981', warning: '#F59E0B',
     prot: '#EC7A74', carb: '#E8B45A', fat: '#6BB0E0',
-    toggleOn: '#2E3B34', chipBg: '#16271D',
-    danger: '#F08A82', dangerBtn: '#C0473F', dangerBorder: '#46291F',
-    warnBg: '#241D12', warnBorder: '#3D3015', warnText: '#E8B45A',
-    navBg: 'rgba(14,20,17,0.92)'
+    toggleOn: '#1B2536', chipBg: '#1B2536',
+    danger: '#e36a5a', dangerBtn: '#e36a5a', dangerBorder: '#3A2422',
+    warnBg: '#2A2114', warnBorder: '#4A3A1A', warnText: '#F59E0B',
+    navBg: '#0B0F19'
   };
   var DISPLAY = "'Barlow Condensed', system-ui, sans-serif";
   var S = {
-    screen: { maxWidth: 460, margin: '0 auto', padding: '20px 16px 96px' },
-    h1: { fontFamily: DISPLAY, fontWeight: 800, fontSize: 32, letterSpacing: 0.5, textTransform: 'uppercase', margin: '2px 0 2px', color: C.ink, lineHeight: 0.98 },
-    sub: { color: C.ink2, fontSize: 13.5, margin: '0 0 18px' },
-    card: { background: C.card, border: '1px solid ' + C.line, borderRadius: 12, padding: 18, marginBottom: 14 },
-    cardTitle: { fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, letterSpacing: 0.5, textTransform: 'uppercase', color: C.ink, margin: '0 0 14px' },
-    label: { display: 'block', fontSize: 11.5, color: C.ink2, marginBottom: 7, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' },
-    input: { width: '100%', padding: '12px 14px', fontSize: 16, color: C.ink, background: C.inputBg, border: '1px solid ' + C.line, borderRadius: 9, outline: 'none' },
+    screen: { maxWidth: 480, margin: '0 auto', padding: '20px 18px 96px' },
+    h1: { fontFamily: DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: 0.5, textTransform: 'uppercase', margin: '2px 0', color: C.ink, lineHeight: 1 },
+    sub: { color: C.ink3, fontSize: 13.5, margin: '0 0 18px' },
+    card: { background: C.card, border: '1px solid ' + C.line, borderRadius: 14, padding: 16, marginBottom: 11 },
+    cardTitle: { fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, letterSpacing: 0.5, textTransform: 'uppercase', color: C.ink, margin: '0 0 14px' },
+    label: { display: 'block', fontSize: 11.5, letterSpacing: 1, textTransform: 'uppercase', color: C.ink3, fontWeight: 700, marginBottom: 6 },
+    input: { width: '100%', padding: '12px 13px', background: C.inputBg, border: '1px solid ' + C.borderInput, borderRadius: 10, color: C.ink, fontSize: 14.5, fontWeight: 500, outline: 'none', boxSizing: 'border-box' },
     row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 },
     field: { marginBottom: 14 },
-    btn: { width: '100%', padding: '13px 16px', fontSize: 13.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: C.onBrand, background: C.brand, border: 'none', borderRadius: 9, cursor: 'pointer' },
-    btnGhost: { width: '100%', padding: '12px 16px', fontSize: 12.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: C.brandDark, background: 'transparent', border: '1px solid ' + C.line, borderRadius: 9, cursor: 'pointer' },
-    note: { fontSize: 12.5, color: C.ink2, lineHeight: 1.5 }
+    btn: { width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: C.brand, color: C.onBrand, border: 'none', borderRadius: 11, padding: '14px 20px', fontSize: 15, fontWeight: 700, cursor: 'pointer' },
+    btnGhost: { width: '100%', padding: '12px 20px', borderRadius: 11, fontSize: 14, fontWeight: 700, cursor: 'pointer', border: '1.5px solid ' + C.brand, background: 'transparent', color: C.brand },
+    note: { fontSize: 12.5, color: C.ink3, lineHeight: 1.5 }
   };
 
   /* ---------- Reutilizáveis ---------- */
@@ -1394,13 +1411,50 @@
      APP + navegação inferior
      ============================================================ */
   var ABAS = [{ id: 'hoje', rotulo: 'Hoje' }, { id: 'semana', rotulo: 'Semana' }, { id: 'biblioteca', rotulo: 'Biblioteca' }, { id: 'perfil', rotulo: 'Perfil' }];
-  function TelaCarregando(props) {
+  // Símbolo da marca Fuel: uma folha (frescor/nutrição). Principal diferenciador da família Forge.
+  function BrandMark(props) {
+    var size = props.size || 24;
     return (
-      <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, letterSpacing: 2, textTransform: 'uppercase', color: C.brand }}>Fuel</div>
-        <div style={{ width: 26, height: 26, border: '3px solid ' + C.line, borderTopColor: C.brand, borderRadius: '50%', animation: 'fuelspin 0.8s linear infinite' }} />
-        <div style={{ color: C.ink2, fontSize: 13.5 }}>{props.texto || 'Carregando…'}</div>
-        <style>{'@keyframes fuelspin{to{transform:rotate(360deg)}}'}</style>
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={props.style}>
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" fill={C.brand} />
+        <path d="M2 21c0-3 1.85-5.36 5.08-6" stroke={C.brand} strokeWidth="2" strokeLinecap="round" fill="none" />
+        <path d="M16.5 6.2c-3 1.6-5.2 4.1-6.4 7.6" stroke={onColor(C.brand)} strokeWidth="1.3" strokeLinecap="round" fill="none" opacity="0.5" />
+      </svg>
+    );
+  }
+  // Anel de progresso (elemento de assinatura do design system).
+  function Ring(props) {
+    var size = props.size || 132, stroke = props.stroke || 11;
+    var accent = props.accent || C.brand, track = props.track || C.line;
+    var r = (size - stroke) / 2, c = 2 * Math.PI * r;
+    return (
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={accent} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - (props.pct || 0))} style={{ transition: 'stroke-dashoffset .5s ease' }} />
+      </svg>
+    );
+  }
+  // Tela de carregamento: marca pulsando dentro do anel girando.
+  function TelaCarregando(props) {
+    var size = 96, stroke = 6;
+    var r = (size - stroke) / 2, c = 2 * Math.PI * r;
+    return (
+      <div style={{ minHeight: '100dvh', background: C.bg, color: C.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+        <div style={{ position: 'relative', width: size, height: size }}>
+          <svg width={size} height={size} style={{ position: 'absolute', inset: 0 }}>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.line} strokeWidth={stroke} />
+          </svg>
+          <svg width={size} height={size} style={{ position: 'absolute', inset: 0, animation: 'fds-spin 1s linear infinite' }}>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.brand} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * 0.72} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fds-pulse 1.4s ease-in-out infinite' }}>
+            <BrandMark size={52} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 24, letterSpacing: 0.5, textTransform: 'uppercase', color: C.ink }}><span style={{ color: C.brand }}>F</span>uel</span>
+          <span style={{ color: C.inkDimmer, fontSize: 13, fontWeight: 600 }}>{props.texto || 'carregando'}<span className="fds-dots"></span></span>
+        </div>
       </div>
     );
   }
@@ -1433,82 +1487,103 @@
     return m[code] || 'Algo deu errado. Tente de novo.';
   }
   function LoginScreen() {
-    var ms = useState('entrar'); var modo = ms[0], setModo = ms[1]; // entrar | criar | reset
+    var ms = useState('in'); var modo = ms[0], setModo = ms[1]; // in | up
     var es = useState(''); var email = es[0], setEmail = es[1];
     var ps = useState(''); var senha = ps[0], setSenha = ps[1];
     var bs = useState(false); var ocupado = bs[0], setOcupado = bs[1];
     var rs = useState(''); var erro = rs[0], setErro = rs[1];
-    var gs = useState(''); var aviso = gs[0], setAviso = gs[1];
-    function limpa() { setErro(''); setAviso(''); }
-    function comEmail() {
-      limpa();
-      if (!email.trim()) { setErro('Digite seu e-mail.'); return; }
-      setOcupado(true);
-      var p;
-      if (modo === 'reset') {
-        p = window.fbAuth.sendPasswordResetEmail(email.trim()).then(function () {
-          setAviso('Enviamos um link de recuperação para o seu e-mail.'); setModo('entrar');
-        });
-      } else if (modo === 'criar') {
-        p = window.fbAuth.createUserWithEmailAndPassword(email.trim(), senha);
-      } else {
-        p = window.fbAuth.signInWithEmailAndPassword(email.trim(), senha);
-      }
-      p.catch(function (e) { setErro(traduzErroAuth(e && e.code)); }).then(function () { setOcupado(false); });
-    }
-    function comGoogle() {
+    var is = useState(''); var info = is[0], setInfo = is[1];
+    var pc = useState(null); var pendente = pc[0], setPendente = pc[1];
+    function limpa() { setErro(''); setInfo(''); }
+    async function metodosDe(mail) { try { return await window.fbAuth.fetchSignInMethodsForEmail(mail.trim()); } catch (e) { return []; } }
+    async function comGoogle() {
       limpa(); setOcupado(true);
-      var prov = new firebase.auth.GoogleAuthProvider();
-      window.fbAuth.signInWithPopup(prov).catch(function (e) {
+      try {
+        var prov = new firebase.auth.GoogleAuthProvider();
+        var res = await window.fbAuth.signInWithPopup(prov);
+        if (pendente && res && res.user) { try { await res.user.linkWithCredential(pendente); } catch (e) { } setPendente(null); }
+      } catch (e) {
         if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) {
-          return window.fbAuth.signInWithRedirect(prov);
+          try { await window.fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); return; } catch (e2) { setErro(traduzErroAuth(e2 && e2.code)); }
+        } else if (e && e.code === 'auth/account-exists-with-different-credential') {
+          setErro('Esse e-mail já usa senha. Entre com e-mail e senha.'); setModo('in');
+        } else { setErro(traduzErroAuth(e && e.code)); }
+        setOcupado(false);
+      }
+    }
+    async function comEmail() {
+      limpa();
+      var mail = email.trim();
+      if (!mail) { setErro('Digite o e-mail.'); return; }
+      if (!senha) { setErro('Digite a senha.'); return; }
+      setOcupado(true);
+      try {
+        if (modo === 'up') {
+          var metodos = await metodosDe(mail);
+          if (metodos.indexOf('google.com') >= 0 && metodos.indexOf('password') < 0) {
+            setPendente(firebase.auth.EmailAuthProvider.credential(mail, senha)); setOcupado(false);
+            setInfo('Esse e-mail já entra com Google. Toque em "Continuar com Google" — a senha que você digitou será vinculada à sua conta.'); return;
+          }
+          await window.fbAuth.createUserWithEmailAndPassword(mail, senha);
+        } else {
+          await window.fbAuth.signInWithEmailAndPassword(mail, senha);
+        }
+      } catch (e) {
+        if (e && (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password')) {
+          var m2 = await metodosDe(mail);
+          if (m2.indexOf('google.com') >= 0 && m2.indexOf('password') < 0) {
+            if (modo === 'in') setErro('Esse e-mail entra com Google. Toque em "Continuar com Google".');
+            else { setPendente(firebase.auth.EmailAuthProvider.credential(mail, senha)); setInfo('Esse e-mail já entra com Google. Toque em "Continuar com Google" — sua senha será vinculada.'); }
+            setOcupado(false); return;
+          }
         }
         setErro(traduzErroAuth(e && e.code)); setOcupado(false);
-      });
+      }
     }
-    var titulo = modo === 'criar' ? 'Criar conta' : (modo === 'reset' ? 'Recuperar senha' : 'Entrar');
-    var btnTxt = modo === 'criar' ? 'Criar conta' : (modo === 'reset' ? 'Enviar link' : 'Entrar');
+    async function resetar() {
+      limpa();
+      var mail = email.trim();
+      if (!mail) { setErro('Digite o e-mail no campo acima pra enviar o link de redefinição.'); return; }
+      setOcupado(true);
+      try {
+        var metodos = await metodosDe(mail);
+        if (metodos.length && metodos.indexOf('password') < 0) { setInfo('Esse e-mail entra com Google — não tem senha pra redefinir. Use "Continuar com Google".'); setOcupado(false); return; }
+        await window.fbAuth.sendPasswordResetEmail(mail);
+        setInfo('Enviei um link de redefinição pra ' + mail + '. Verifique a caixa de entrada (e o spam).');
+      } catch (e) { setErro(traduzErroAuth(e && e.code)); }
+      setOcupado(false);
+    }
     return (
-      <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 18px', maxWidth: 420, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 22 }}>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 52, letterSpacing: 2, textTransform: 'uppercase', color: C.brand, lineHeight: 1 }}>Fuel</div>
-          <div style={{ color: C.ink2, fontSize: 13.5, marginTop: 4 }}>Seu plano alimentar, na nuvem.</div>
-        </div>
-        <div style={S.card}>
-          <div style={Object.assign({}, S.cardTitle, { marginBottom: 16 })}>{titulo}</div>
-          <div style={S.field}>
-            <label style={S.label}>E-mail</label>
-            <input style={S.input} type="email" autoComplete="email" inputMode="email" value={email} onChange={function (e) { setEmail(e.target.value); }} placeholder="voce@email.com" />
+      <div style={{ minHeight: '100dvh', background: C.bg, color: C.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
+        <div style={{ width: '100%', maxWidth: 360 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, justifyContent: 'center', marginBottom: 6 }}>
+            <BrandMark size={40} />
+            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 40, letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1 }}><span style={{ color: C.brand }}>F</span>uel</span>
           </div>
-          {modo !== 'reset' ? (
-            <div style={S.field}>
-              <label style={S.label}>Senha</label>
-              <input style={S.input} type="password" autoComplete={modo === 'criar' ? 'new-password' : 'current-password'} value={senha} onChange={function (e) { setSenha(e.target.value); }} placeholder="••••••" />
+          <p style={{ textAlign: 'center', color: C.ink3, fontSize: 13.5, margin: '0 0 30px' }}>Seu plano alimentar, em qualquer lugar.</p>
+          <button onClick={comGoogle} disabled={ocupado} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: pendente ? C.brand : '#fff', color: pendente ? C.onBrand : '#1a1a1a', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: ocupado ? 'default' : 'pointer', opacity: ocupado ? 0.6 : 1 }}>
+            {!pendente ? <IconeGoogle size={18} /> : null}
+            {pendente ? 'Continuar com Google e vincular' : 'Continuar com Google'}
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+            <div style={{ flex: 1, height: 1, background: C.line }} />
+            <span style={{ fontSize: 12, color: C.inkDimmer, fontWeight: 600 }}>ou</span>
+            <div style={{ flex: 1, height: 1, background: C.line }} />
+          </div>
+          <input type="email" inputMode="email" autoComplete="email" placeholder="E-mail" value={email} onChange={function (e) { setEmail(e.target.value); limpa(); }} style={Object.assign({}, S.input, { marginBottom: 10 })} />
+          <input type="password" autoComplete={modo === 'up' ? 'new-password' : 'current-password'} placeholder="Senha" value={senha} onChange={function (e) { setSenha(e.target.value); limpa(); }} onKeyDown={function (e) { if (e.key === 'Enter') comEmail(); }} style={Object.assign({}, S.input, { marginBottom: modo === 'in' ? 6 : 14 })} />
+          {modo === 'in' ? (
+            <div style={{ textAlign: 'right', marginBottom: 12 }}>
+              <button onClick={resetar} disabled={ocupado} style={{ background: 'none', border: 'none', color: C.ink2, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Esqueci minha senha</button>
             </div>
           ) : null}
-          {erro ? <div style={{ background: C.dangerBg || C.warnBg, border: '1px solid ' + C.dangerBorder, color: C.danger, fontSize: 12.5, padding: '9px 12px', borderRadius: 9, marginBottom: 12 }}>{erro}</div> : null}
-          {aviso ? <div style={{ background: C.warnBg, border: '1px solid ' + C.warnBorder, color: C.warnText, fontSize: 12.5, padding: '9px 12px', borderRadius: 9, marginBottom: 12 }}>{aviso}</div> : null}
-          <button style={Object.assign({}, S.btn, ocupado ? { opacity: 0.6 } : {})} disabled={ocupado} onClick={comEmail}>{ocupado ? 'Aguarde…' : btnTxt}</button>
-          {modo === 'entrar' ? (
-            <div style={{ textAlign: 'center', marginTop: 10 }}>
-              <button onClick={function () { limpa(); setModo('reset'); }} style={{ background: 'none', border: 'none', color: C.ink2, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}>Esqueci minha senha</button>
-            </div>
-          ) : null}
-          {modo !== 'reset' ? (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0' }}>
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-                <div style={{ color: C.ink2, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }}>ou</div>
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-              </div>
-              <button onClick={comGoogle} disabled={ocupado} style={{ width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: C.ink, background: C.surface, border: '1px solid ' + C.line, borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><IconeGoogle size={18} />Continuar com Google</button>
-            </div>
-          ) : null}
-        </div>
-        <div style={{ textAlign: 'center', marginTop: 16, color: C.ink2, fontSize: 13 }}>
-          {modo === 'entrar' ? <span>Ainda não tem conta? <button onClick={function () { limpa(); setModo('criar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Criar conta</button></span> : null}
-          {modo === 'criar' ? <span>Já tem conta? <button onClick={function () { limpa(); setModo('entrar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Entrar</button></span> : null}
-          {modo === 'reset' ? <button onClick={function () { limpa(); setModo('entrar'); }} style={{ background: 'none', border: 'none', color: C.brandDark, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Voltar para o login</button> : null}
+          {erro ? <div style={{ color: C.danger, fontSize: 13, fontWeight: 600, marginBottom: 14, textAlign: 'center', lineHeight: 1.45 }}>{erro}</div> : null}
+          {info ? <div style={{ color: C.success, fontSize: 13, fontWeight: 600, marginBottom: 14, textAlign: 'center', lineHeight: 1.45 }}>{info}</div> : null}
+          <button onClick={comEmail} disabled={ocupado} style={Object.assign({}, S.btn, { opacity: ocupado ? 0.6 : 1 })}>{modo === 'up' ? 'Criar conta' : 'Entrar'}</button>
+          <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13.5, color: C.ink2 }}>
+            {modo === 'up' ? 'Já tem conta? ' : 'Ainda não tem conta? '}
+            <button onClick={function () { setModo(modo === 'up' ? 'in' : 'up'); limpa(); }} style={{ background: 'none', border: 'none', color: C.brand, fontWeight: 700, cursor: 'pointer', fontSize: 13.5, padding: 0 }}>{modo === 'up' ? 'Entrar' : 'Criar conta'}</button>
+          </div>
         </div>
       </div>
     );
@@ -1563,10 +1638,10 @@
     return (
       <div style={{ minHeight: '100dvh', background: C.bg }}>
         {conteudo}
-        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', background: C.navBg, backdropFilter: 'blur(8px)', borderTop: '1px solid ' + C.line, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, maxWidth: 480, margin: '0 auto', display: 'flex', background: C.bg, borderTop: '1px solid ' + C.divider, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {ABAS.map(function (a) {
             var on = aba === a.id;
-            return <button key={a.id} onClick={function () { setAba(a.id); }} style={{ flex: 1, padding: '10px 6px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: on ? C.brandDark : C.ink2 }}><Icone nome={a.id} size={22} color={on ? C.brandDark : C.ink2} strokeWidth={on ? 2.3 : 1.9} /><span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>{a.rotulo}</span></button>;
+            return <button key={a.id} onClick={function () { setAba(a.id); }} style={{ flex: 1, padding: '12px 0 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: on ? C.brand : C.inkDimmer, borderTop: on ? '2px solid ' + C.brand : '2px solid transparent', marginTop: -1 }}><Icone nome={a.id} size={21} color={on ? C.brand : C.inkDimmer} strokeWidth={on ? 2.3 : 1.9} /><span style={{ fontSize: 11, fontWeight: 600 }}>{a.rotulo}</span></button>;
           })}
         </nav>
       </div>
@@ -1594,7 +1669,7 @@
     storeGet: storeGet, storeSet: storeSet,
     setCurrentUid: setCurrentUid, carregarTudoDaNuvem: carregarTudoDaNuvem, nuvemSet: nuvemSet, limparLocalSync: limparLocalSync, CHAVES_SYNC: CHAVES_SYNC
   };
-  if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; }
+  if (typeof window !== 'undefined') { window.FuelEngine = Engine; window.FuelApp = App; window.FuelUI = { LoginScreen: LoginScreen, TelaCarregando: TelaCarregando, BrandMark: BrandMark, Ring: Ring }; }
   if (typeof document !== 'undefined' && document.getElementById('root')) {
     var mount = document.getElementById('root'); mount.innerHTML = '';
     ReactDOM.createRoot(mount).render(<App />);

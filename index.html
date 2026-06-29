@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-  <meta name="theme-color" content="#0E1411" />
+  <meta name="theme-color" content="#0B0F19" />
   <title>Fuel — Nutrição</title>
 
   <link rel="manifest" href="manifest.json" />
@@ -15,24 +15,31 @@
   <!-- Fontes: Barlow Condensed (números/títulos) + Inter (corpo). Com fallback de sistema se offline. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; }
     body {
-      background: #0E1411;
-      color: #ECEFEA;
+      background: #0B0F19;
+      color: #f0f0f2;
       font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
       overscroll-behavior-y: none;
     }
     #root { min-height: 100dvh; }
     input, select, button { font-family: inherit; }
+    button:focus-visible { outline: 2px solid #2FBF6E; outline-offset: 2px; }
+    input:focus, textarea:focus, select:focus { border-color: #2FBF6E; }
+    @keyframes fds-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes fds-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.86); opacity: 0.62; } }
+    .fds-dots::after { content: ""; animation: fds-dots 1.4s steps(1) infinite; }
+    @keyframes fds-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
     /* Estado de carregamento antes do React montar */
     #boot {
       display: flex; align-items: center; justify-content: center;
-      min-height: 100dvh; color: #8B968D; font-size: 15px;
+      min-height: 100dvh; color: #5a5a62; font-size: 15px;
     }
   </style>
 </head>

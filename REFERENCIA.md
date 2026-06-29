@@ -4,8 +4,8 @@ Referência técnica viva do app. Atualizar a cada mudança estrutural (formato 
 dado, nova chave de storage, nova dependência, mudança de deploy, novo recurso).
 
 ## Estado atual
-- **Lote concluído:** 12 (Login + armazenamento em nuvem via Firebase, espelhando o app Forge, com identidade visual do Fuel).
-- **CACHE_VERSION atual:** `fuel-v12` (em `sw.js`).
+- **Lote concluído:** 13 (Forge Design System oficial: superfícies grafite-azulado + acento verde; BrandMark folha; LoginScreen com vínculo Google-senha; + proteção de privacidade na troca de conta).
+- **CACHE_VERSION atual:** `fuel-v13` (em `sw.js`).
 - **Hospedagem:** GitHub Pages em `mateusutz.github.io/Fuel/` (subcaminho → todos os caminhos são relativos).
 - **Persistência:** localStorage, via `storeGet`/`storeSet`, namespace `fuel:`.
 
@@ -97,6 +97,16 @@ Backup (`exportarBackup`/`importarBackup`): exporta `{ app, schema, exportadoEm,
 - **Linguagem do Forge:** elevação por **borda** (não sombra) — cards são `card` + `1px solid line`; cantos mais retos (9–12px); labels/seções em CAIXA ALTA com `letter-spacing`; header com borda inferior; números grandes em destaque. Anel de macros (assinatura) mantido. Ícones de linha (Feather).
 - `index.html`/`manifest.json`: `theme-color`/background `#0E1411`, status bar translúcida.
 - **Toda a lógica e o modelo de dados são os mesmos** — o lote 11 mexeu só na "pele" (tokens `C`, estilos `S`, fontes, e cores antes hardcoded migradas para `C`).
+
+## Identidade visual (lote 13 — Forge Design System oficial)
+- Segue o **Forge Design System** (arquivos `FORGE_DESIGN_SYSTEM.md` + `forge-design-system.js`). Variação de tema irmão: **superfícies grafite-azulado do Forge + acento VERDE do Fuel** (decisão do Mateus). Macros preservados.
+- Tokens em `C` (espelham `T` do DS): fundo `#0B0F19`, card `#161E2E`, elevado/`surface` `#1B2536`, painel `#121215`, borda `#2A3344`, borda de input `#2E3A4D`. Texto `#f0f0f2` / muted `#9a9aa2` / dim `#7a7a82` (`ink3`) / faint `#6a6a72` / dimmer `#5a5a62`.
+- Acento `ACCENT = #2FBF6E` (verde-folha); `onBrand` via helper **`onColor(hex)`** (contraste automático por luminância). Semânticas: success `#10B981`, warning `#F59E0B`, danger `#e36a5a`. Macros (fixos): proteína `#EC7A74`, carbo `#E8B45A`, gordura `#6BB0E0`.
+- **Tipografia:** Barlow Condensed (700, uppercase, `letterSpacing 0.5`) em títulos/logo/números; Inter (400–800) no corpo.
+- **Raios:** card 14, painel 18, input 10, botão 11, chips 7–8, pills 999. Largura máx **480**. Elevação por borda (sem sombra).
+- **Componentes de assinatura:** `BrandMark` (símbolo do Fuel = folha SVG verde), `Ring` (anel), `TelaCarregando` (marca pulsando no anel girando), `LoginScreen` oficial (Google + e-mail/senha + **vínculo guiado Google↔senha** + reset). Nav inferior `navBtn` (aba ativa com borda superior no acento).
+- **Animações** no `index.html`: `fds-spin`, `fds-pulse`, `fds-dots`, foco verde, e `prefers-reduced-motion`. `index.html`/`manifest`: tema/fundo `#0B0F19`.
+- Para trocar o símbolo: editar o componente `BrandMark`. Para trocar o acento: a constante `ACCENT`.
 
 ## Nuvem e login (lote 12 — Firebase, modelo do app Forge)
 - **Firebase exclusivo do Fuel** (projeto `fuel-14edd`), compat 10.12.2 via CDN no `index.html` (app+auth+firestore), com `enablePersistence({synchronizeTabs:true})`. Expõe `window.fbAuth` e `window.fbDb`. Config é pública (protegida pelas Security Rules).
